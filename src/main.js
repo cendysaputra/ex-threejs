@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStudioEnvironment } from './environment.js';
+import { createAnimator } from './animation.js';
 import { createRobot } from './robot.js';
 
 const params = new URLSearchParams(location.search);
@@ -74,10 +75,44 @@ robot.rotation.y = -0.32;
 robot.position.x = -0.06;
 scene.add(robot);
 
-const { neckY, neck, eyes, ears, antennae, arms, barGlow } = robot.userData;
+const { neck } = robot.userData;
 // head turned a touch less than the body and sitting a little off-centre, as in the reference
 neck.rotation.y = 0.08;
 neck.position.x = 0.06;
+
+// faint contact shadow so the robot reads as standing on the floor when it gets up
+const contactShadow = (() => {
+  const S = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(120, 100, 170, 1)');
+  g.addColorStop(0.5, 'rgba(120, 100, 170, 0.45)');
+  g.addColorStop(1, 'rgba(120, 100, 170, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.2, 1.6).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({
+      map: new THREE.CanvasTexture(canvas),
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  mesh.position.set(robot.position.x, 0.002, 0.05);
+  scene.add(mesh);
+  return mesh;
+})();
+
+function updateContactShadow() {
+  // a hop lifts the robot off the floor: the shadow fades and shrinks a little
+  const air = animator.air;
+  contactShadow.material.opacity = 0.12 * (1 - Math.min(0.6, air * 6));
+  contactShadow.scale.setScalar(1 - Math.min(0.3, air * 2));
+}
 
 function resize() {
   const w = window.innerWidth;
@@ -92,64 +127,26 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// --- idle animation ---
+// --- animation ---
 const timer = new THREE.Timer();
-let nextBlink = 2.5;
+const animator = createAnimator(robot);
 
-function blinkAmount(t) {
-  // quick close/open lasting ~0.18s
-  const d = t - nextBlink;
-  if (d < 0) return 0;
-  if (d > 0.18) {
-    nextBlink = t + 2.5 + Math.random() * 3;
-    return 0;
-  }
-  return Math.sin((d / 0.18) * Math.PI);
-}
-
-// Wave with the arm nearest the viewer: automatically every few seconds, or on tap.
-const WAVE_RAISE = 0.45;
-const WAVE_HOLD = 2.4;
-const WAVE_LOWER = 0.55;
-const WAVE_LEN = WAVE_RAISE + WAVE_HOLD + WAVE_LOWER;
-let waveStart = 1.5;
-
-const easeInOut = (x) => x * x * (3 - 2 * x);
-
-function waveAmount(t) {
-  const d = t - waveStart;
-  if (d < 0 || d > WAVE_LEN) return { lift: 0, wiggle: 0 };
-  let lift = 1;
-  if (d < WAVE_RAISE) lift = easeInOut(d / WAVE_RAISE);
-  else if (d > WAVE_RAISE + WAVE_HOLD) lift = easeInOut(1 - (d - WAVE_RAISE - WAVE_HOLD) / WAVE_LOWER);
-  return { lift, wiggle: Math.sin(Math.max(0, d - WAVE_RAISE * 0.6) * Math.PI * 4.4) };
-}
-
+// tap (without dragging) to make the robot wave, or to have another go at standing
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => (downAt = { x: e.clientX, y: e.clientY }));
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!downAt || still) return;
-  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-  const t = timer.getElapsed();
-  if (moved < 6 && t - waveStart > WAVE_LEN) waveStart = t;
+  if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) animator.tap(timer.getElapsed());
   downAt = null;
 });
 
-function animateArms(t) {
-  const { lift, wiggle } = waveAmount(t);
-  if (t - waveStart > WAVE_LEN) waveStart = t + 5 + Math.random() * 4;
-  for (const arm of arms) {
-    const { side, rest } = arm.userData;
-    const sway = Math.sin(t * 1.3 + side) * 0.06;
-    let z = rest.z + side * sway;
-    let x = rest.x + Math.sin(t * 1.1 + side * 0.5) * 0.04;
-    if (side > 0) {
-      z = THREE.MathUtils.lerp(z, 1.85 + wiggle * 0.3, lift);
-      x = THREE.MathUtils.lerp(x, 0.35, lift);
-    }
-    arm.rotation.set(x, 0, z);
-  }
-  return lift;
+// keep the framing centred as the robot stands up
+const baseTargetY = controls.target.y;
+function followRobot() {
+  const delta = baseTargetY + animator.lift * 0.5 - controls.target.y;
+  controls.target.y += delta;
+  camera.position.y += delta;
+  rig.position.copy(controls.target);
 }
 
 function animate() {
@@ -159,18 +156,9 @@ function animate() {
   updateRig();
 
   if (!still) {
-    neck.position.y = neckY + Math.sin(t * 1.6) * 0.012;
-    const lift = animateArms(t);
-    neck.rotation.z = Math.sin(t * 0.8) * 0.035 - lift * 0.07;
-    neck.rotation.x = Math.sin(t * 0.6 + 1) * 0.02;
-    antennae.forEach((a, i) => {
-      a.rotation.z = (i ? -1 : 1) * (Math.sin(t * 2.4 + i) * 0.05);
-    });
-    const b = blinkAmount(t);
-    for (const e of eyes) e.scale.y = 1 - 0.88 * b;
-    const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
-    barGlow.material.opacity = 0.15 + 0.15 * pulse;
-    for (const ear of ears) ear.children[1].material.emissiveIntensity = 0.62 + 0.15 * pulse;
+    animator.update(t);
+    followRobot();
+    updateContactShadow();
   }
 
   renderer.render(scene, camera);

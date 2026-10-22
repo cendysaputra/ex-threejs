@@ -20,6 +20,23 @@ const SMILE = { x: 0, y: -0.155, r: 0.088, tube: 0.019 };
 
 const TORSO_Z = 0.86; // torso depth squash
 
+// Legs hang from hip pivots; `sit` is the hip angle while sitting, π/2 is standing.
+const LEG = { x: 0.41, hipY: 0.2, offset: 0.12, sit: -0.1, back: -0.2, tip: 0.418, radius: 0.214 };
+// The upper body (torso, arms, head) leans around this point, roughly the seat.
+const SEAT = new THREE.Vector3(0, 0.12, -0.05);
+
+// How far the hips must rise so the lowest point of the legs stays on the floor.
+function legDrop(angle) {
+  const s = Math.sin(angle);
+  const reach = Math.max((LEG.back + LEG.offset) * s, (LEG.tip + LEG.offset) * s);
+  return reach + LEG.radius * Math.cos(angle) - LEG.hipY;
+}
+export function hipLift(angle) {
+  return Math.max(0, legDrop(angle) - legDrop(LEG.sit));
+}
+export const LEG_SIT = LEG.sit;
+export const LEG_STAND = Math.PI / 2;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -577,7 +594,8 @@ function buildBody(mats) {
     return arm;
   });
 
-  // stubby legs pointing at the viewer
+  // stubby legs: each hangs from a hip pivot, pointing at the viewer while sitting and
+  // swinging down underneath the body to stand
   const legGeo = lathe(
     [
       [0.0, -0.2],
@@ -592,17 +610,21 @@ function buildBody(mats) {
     64,
     96,
   ).rotateX(Math.PI / 2);
-  for (const side of [-1, 1]) {
+  const legs = [-1, 1].map((side) => {
+    const hip = new THREE.Group();
+    hip.position.set(side * LEG.x, LEG.hipY, 0);
+    hip.rotation.x = LEG.sit;
     const leg = new THREE.Mesh(legGeo, mats.feet);
-    leg.position.set(side * 0.41, 0.19, 0.12);
+    leg.position.set(0, -0.01, LEG.offset);
     leg.scale.set(0.88, 0.92, 1);
-    leg.rotation.set(-0.1, side * 0.06, 0);
+    leg.rotation.y = side * 0.06;
     leg.castShadow = true;
     leg.receiveShadow = true;
-    body.add(leg);
-  }
+    hip.add(leg);
+    return hip;
+  });
 
-  return { body, arms, bar, barGlow };
+  return { body, arms, legs, bar, barGlow };
 }
 
 // ---------------------------------------------------------------------------
@@ -612,17 +634,25 @@ export function createRobot() {
   const robot = new THREE.Group();
   robot.name = 'robot';
 
-  const { body, arms, bar, barGlow } = buildBody(mats);
-  robot.add(body);
+  const { body, arms, legs, bar, barGlow } = buildBody(mats);
+
+  // everything above the hips hangs off the seat pivot so it can lean as one piece
+  const upper = new THREE.Group();
+  upper.position.copy(SEAT);
+  const upperInner = new THREE.Group();
+  upperInner.position.copy(SEAT).negate();
+  upper.add(upperInner);
+  upperInner.add(body);
+  robot.add(upper, ...legs);
 
   const neck = new THREE.Group();
   neck.position.y = NECK_Y;
-  robot.add(neck);
+  upperInner.add(neck);
 
   const { head, eyes, ears, antennae } = buildHead(mats);
   head.position.y = HEAD_Y;
   neck.add(head);
 
-  robot.userData = { neckY: NECK_Y, neck, head, eyes, ears, antennae, arms, bar, barGlow };
+  robot.userData = { neckY: NECK_Y, upper, neck, head, eyes, ears, antennae, arms, legs, bar, barGlow };
   return robot;
 }
