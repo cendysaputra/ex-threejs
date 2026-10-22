@@ -32,22 +32,30 @@ export function makeVisorTexture({ eyes, smile }) {
 
   // lavender at the top melting into pink at the bottom
   const base = ctx.createLinearGradient(0, 0, 0, S);
-  base.addColorStop(0.0, '#b2bde6');
-  base.addColorStop(0.3, '#bcbae2');
-  base.addColorStop(0.55, '#cbbde2');
-  base.addColorStop(0.8, '#efd4e3');
-  base.addColorStop(1.0, '#fde2e6');
+  base.addColorStop(0.0, '#aab9ea');
+  base.addColorStop(0.3, '#b5b3e6');
+  base.addColorStop(0.55, '#c7b8e4');
+  base.addColorStop(0.8, '#f1d2e0');
+  base.addColorStop(1.0, '#fde1e0');
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
 
-  // cooler on the right, warmer on the left
+  // warm peach on the left, deeper violet in the upper right
   const side = ctx.createLinearGradient(0, 0, S, 0);
-  side.addColorStop(0.0, 'rgba(255, 205, 225, 0.55)');
-  side.addColorStop(0.35, 'rgba(255, 205, 225, 0.0)');
-  side.addColorStop(0.7, 'rgba(160, 150, 235, 0.0)');
-  side.addColorStop(1.0, 'rgba(150, 140, 230, 0.35)');
+  side.addColorStop(0.0, 'rgba(255, 214, 214, 0.55)');
+  side.addColorStop(0.35, 'rgba(255, 214, 214, 0.0)');
   ctx.fillStyle = side;
   ctx.fillRect(0, 0, S, S);
+  radial(ctx, px(0.85), py(0.65), S * 0.42, S * 0.34, [
+    [0, 'rgba(135, 105, 200, 0.42)'],
+    [0.6, 'rgba(135, 105, 200, 0.18)'],
+    [1, 'rgba(135, 105, 200, 0)'],
+  ]);
+  // the pink glow wraps around the bottom right too
+  radial(ctx, px(0.7), py(-0.75), S * 0.4, S * 0.25, [
+    [0, 'rgba(255, 196, 214, 0.55)'],
+    [1, 'rgba(255, 196, 214, 0)'],
+  ]);
 
   // deeper tint towards the rim gives the glass some depth
   radial(ctx, S / 2, S / 2, S * 0.7, S * 0.7, [
@@ -60,36 +68,25 @@ export function makeVisorTexture({ eyes, smile }) {
   // rosy cheeks
   for (const e of eyes) {
     radial(ctx, px(e.u * 1.08), py(e.v - 0.42), S * 0.2, S * 0.13, [
-      [0, 'rgba(255, 196, 210, 0.6)'],
-      [0.5, 'rgba(255, 200, 214, 0.28)'],
-      [1, 'rgba(255, 205, 220, 0)'],
+      [0, 'rgba(255, 202, 208, 0.6)'],
+      [0.5, 'rgba(255, 206, 212, 0.28)'],
+      [1, 'rgba(255, 210, 218, 0)'],
     ]);
   }
 
   // warm light spilling from the eyes onto the glass
   for (const e of eyes) {
-    radial(ctx, px(e.u), py(e.v), S * 0.2, S * 0.26, [
-      [0, 'rgba(255, 240, 222, 0.95)'],
-      [0.35, 'rgba(255, 224, 212, 0.6)'],
-      [0.7, 'rgba(252, 206, 218, 0.22)'],
+    radial(ctx, px(e.u), py(e.v), S * 0.19, S * 0.25, [
+      [0, 'rgba(255, 222, 222, 1)'],
+      [0.5, 'rgba(255, 212, 220, 0.7)'],
+      [0.75, 'rgba(253, 204, 220, 0.28)'],
       [1, 'rgba(250, 200, 220, 0)'],
     ]);
   }
   radial(ctx, px(smile.u), py(smile.v), S * 0.07, S * 0.05, [
-    [0, 'rgba(255, 230, 220, 0.6)'],
-    [1, 'rgba(255, 220, 225, 0)'],
+    [0, 'rgba(255, 214, 220, 0.6)'],
+    [1, 'rgba(255, 210, 222, 0)'],
   ]);
-
-  // soft window reflection along the upper left of the glass
-  ctx.save();
-  ctx.filter = 'blur(18px)';
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.lineWidth = S * 0.045;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.ellipse(S * 0.5, S * 0.56, S * 0.4, S * 0.4, 0, Math.PI * 1.08, Math.PI * 1.42);
-  ctx.stroke();
-  ctx.restore();
 
   return canvasTexture(canvas);
 }
@@ -114,9 +111,10 @@ export function makeEyeTexture(n, core) {
       const h = smooth(core - 0.04, 1, s);
       const inside = 1 - smooth(core - 0.035, core + 0.01, s);
       const r = 255;
-      const g = 252 - 26 * h;
-      const b = 238 - 34 * h;
-      const a = Math.max(inside, (1 - h) ** 2.4 * 0.5);
+      // warm cream core with a thin rosy glow around it
+      const g = 252 - 50 * h;
+      const b = 238 - 26 * h;
+      const a = Math.max(inside, (1 - h) ** 1.8 * 0.6);
       const k = (j * S + i) * 4;
       img.data[k] = r;
       img.data[k + 1] = g;

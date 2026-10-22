@@ -18,7 +18,7 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.environment = createStudioEnvironment(renderer);
-scene.environmentIntensity = 0.35;
+scene.environmentIntensity = 0.28;
 
 const camera = new THREE.PerspectiveCamera(28, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 2.75, 9.2);
@@ -39,7 +39,7 @@ rig.position.copy(controls.target);
 scene.add(rig);
 const cameraStart = camera.quaternion.clone().invert();
 
-const key = new THREE.DirectionalLight('#fffaf8', 2.4);
+const key = new THREE.DirectionalLight('#fffaf8', 2.8);
 key.position.set(-5.5, 6, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -49,17 +49,17 @@ key.shadow.camera.top = 2.2;
 key.shadow.camera.bottom = -2.2;
 key.shadow.camera.near = 1;
 key.shadow.camera.far = 20;
-key.shadow.radius = 6;
+key.shadow.radius = 2;
 key.shadow.bias = -0.0004;
-key.shadow.normalBias = 0.02;
+key.shadow.normalBias = 0.03;
 rig.add(key, key.target);
 
 const blue = new THREE.DirectionalLight('#45acff', 3.6);
 blue.position.set(6, 1, 0.8);
-const fill = new THREE.DirectionalLight('#fbf7ff', 0.9);
+const fill = new THREE.DirectionalLight('#fbf7ff', 0.4);
 fill.position.set(0.5, 0.5, 8);
 const pink = new THREE.DirectionalLight('#ff8fcb', 1.8);
-pink.position.set(-6, -4, 2.5);
+pink.position.set(-4, -2.5, -5);
 rig.add(blue, fill, pink);
 for (const light of [blue, fill, pink]) rig.add(light.target);
 
@@ -70,10 +70,14 @@ function updateRig() {
 
 // --- robot ---
 const robot = createRobot();
-robot.rotation.y = -0.34;
+robot.rotation.y = -0.32;
+robot.position.x = -0.06;
 scene.add(robot);
 
 const { neckY, neck, eyes, ears, antennae, arms, barGlow } = robot.userData;
+// head turned a touch less than the body and sitting a little off-centre, as in the reference
+neck.rotation.y = 0.08;
+neck.position.x = 0.06;
 
 function resize() {
   const w = window.innerWidth;

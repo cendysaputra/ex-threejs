@@ -51,6 +51,9 @@ export function createStudioEnvironment(renderer) {
   softbox(5, 10, '#a8d2ff', 2.0, 12, 2, 2); // blue strip, right
   softbox(5, 9, '#ffb6df', 1.4, -12, -1, 4); // pink strip, left
   softbox(10, 4, '#ffffff', 1.2, 0, 12, -4); // top back
+  // strips that draw the glossy crescent along the upper left of the visor
+  softbox(1.6, 14, '#ffffff', 7, -12, 4, -1);
+  softbox(12, 2, '#ffffff', 4.5, -2, 12, 3);
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const target = pmrem.fromScene(scene, 0.035);

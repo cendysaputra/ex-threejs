@@ -5,17 +5,18 @@ import { makeEarTexture, makeEyeTexture, makeGlowTexture, makeVisorTexture } fro
 // Shape parameters (1 unit ≈ half the head width)
 // ---------------------------------------------------------------------------
 
-// Head shell: superellipsoid |x/a|^p + |y/b|^p + |z/c|^p = 1
-const HEAD = { a: 1.0, b: 0.87, c: 0.92, p: 2.15 };
-const NECK_Y = 0.66; // neck pivot above the ground
+// Head shell: superellipsoid |x/(a·w)|^p + |y/b|^p + |z/(c·w)|^p = 1, where the width
+// factor w(y) tapers the dome and lets the lower half bulge, like a soft egg.
+const HEAD = { a: 1.0, b: 0.85, c: 0.92, p: 2.15, taper: 0.1 };
+const NECK_Y = 0.69; // neck pivot above the ground
 const HEAD_Y = 0.83; // head centre above the neck pivot
 
 // Visor opening: superellipse on the front of the head, in head space
-const VISOR = { cy: -0.05, hw: 0.75, hh: 0.61, n: 2.55 };
+const VISOR = { cy: -0.08, hw: 0.76, hh: 0.62, n: 2.4 };
 
 // Face features in visor space (u, v in [-1, 1])
-const EYE = { u: 0.47, v: 0.03, hw: 0.2, hh: 0.31, n: 3.2, halo: 1.6 };
-const SMILE = { x: 0, y: -0.215, r: 0.07, tube: 0.0135 };
+const EYE = { u: 0.47, v: 0.08, hw: 0.18, hh: 0.285, n: 2.45, halo: 1.4 };
+const SMILE = { x: 0, y: -0.155, r: 0.088, tube: 0.019 };
 
 const TORSO_Z = 0.86; // torso depth squash
 
@@ -25,20 +26,38 @@ const TORSO_Z = 0.86; // torso depth squash
 
 const sgnPow = (x, e) => Math.sign(x) * Math.pow(Math.abs(x), e);
 
+function headWidth(y) {
+  return 1 - HEAD.taper * THREE.MathUtils.clamp(y / HEAD.b, -1, 1);
+}
+
 function headZ(x, y) {
   const { a, b, c, p } = HEAD;
-  const t = 1 - Math.abs(x / a) ** p - Math.abs(y / b) ** p;
-  return t > 0 ? c * Math.pow(t, 1 / p) : 0;
+  const w = headWidth(y);
+  const t = 1 - Math.abs(x / (a * w)) ** p - Math.abs(y / b) ** p;
+  return t > 0 ? c * w * Math.pow(t, 1 / p) : 0;
+}
+
+function headX(y, z) {
+  const { a, b, c, p } = HEAD;
+  const w = headWidth(y);
+  const t = 1 - Math.abs(y / b) ** p - Math.abs(z / (c * w)) ** p;
+  return t > 0 ? a * w * Math.pow(t, 1 / p) : 0;
 }
 
 function headY(x, z) {
   const { a, b, c, p } = HEAD;
-  const t = 1 - Math.abs(x / a) ** p - Math.abs(z / c) ** p;
-  return t > 0 ? b * Math.pow(t, 1 / p) : 0;
+  // the width depends on y, so settle it with a few fixed-point steps
+  let y = b * 0.8;
+  for (let i = 0; i < 12; i++) {
+    const w = headWidth(y);
+    const t = 1 - Math.abs(x / (a * w)) ** p - Math.abs(z / (c * w)) ** p;
+    y = t > 0 ? b * Math.pow(t, 1 / p) : 0;
+  }
+  return y;
 }
 
 function headGeometry() {
-  const { a, b, c, p } = HEAD;
+  const { a, b, c, p, taper } = HEAD;
   const geo = new THREE.SphereGeometry(1, 220, 160);
   const pos = geo.attributes.position;
   const nor = geo.attributes.normal;
@@ -47,12 +66,19 @@ function headGeometry() {
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const k = Math.pow(Math.abs(v.x) ** p + Math.abs(v.y) ** p + Math.abs(v.z) ** p, -1 / p);
-    const x = v.x * k * a;
     const y = v.y * k * b;
-    const z = v.z * k * c;
+    const w = headWidth(y);
+    const x = v.x * k * a * w;
+    const z = v.z * k * c * w;
     pos.setXYZ(i, x, y, z);
     // analytic normal (gradient of the implicit surface) keeps the seam invisible
-    n.set(sgnPow(x / a, p - 1) / a, sgnPow(y / b, p - 1) / b, sgnPow(z / c, p - 1) / c);
+    const X = x / (a * w);
+    const Z = z / (c * w);
+    n.set(
+      sgnPow(X, p - 1) / (a * w),
+      sgnPow(y / b, p - 1) / b + ((Math.abs(X) ** p + Math.abs(Z) ** p) * taper) / (b * w),
+      sgnPow(Z, p - 1) / (c * w),
+    );
     if (n.lengthSq() < 1e-12) n.copy(v);
     n.normalize();
     nor.setXYZ(i, n.x, n.y, n.z);
@@ -156,13 +182,15 @@ function makeMaterials() {
     shell: plastic('#ffffff'),
     lavender: plastic('#a690e4'),
     lilac: plastic('#d9cdf7'),
-    earRing: plastic('#b9a8f2'),
-    arm: plastic('#b4cbf7'),
-    hand: plastic('#a597ec'),
-    feet: plastic('#efc3ee'),
+    collar: plastic('#9c84dc'),
+    chinPlate: plastic('#c3b3ee'),
+    earRing: plastic('#c8b4f2'),
+    arm: plastic('#a3c0f6'),
+    hand: plastic('#8f84e8'),
+    feet: plastic('#f6b8e4'),
     groove: plastic('#c3b4ee', { roughness: 0.5, clearcoat: 0.2 }),
-    gasket: plastic('#ffd6ec', { roughness: 0.25, clearcoat: 1 }),
-    antennaBall: plastic('#e4cbf5'),
+    gasket: plastic('#9f8ad9', { roughness: 0.3, clearcoat: 1 }),
+    antennaBall: plastic('#dabcf2'),
   };
 }
 
@@ -214,17 +242,17 @@ function buildHead(mats) {
     const x = u * VISOR.hw;
     const y = VISOR.cy + v * VISOR.hh;
     rim.push(new THREE.Vector3(x, y, headZ(x, y) - 0.02));
-    gasket.push(glassPoint(u * 0.955, v * 0.955, new THREE.Vector3()));
+    gasket.push(glassPoint(u * 0.958, v * 0.958, new THREE.Vector3()));
   }
   const lip = new THREE.Mesh(
-    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true), 480, 0.042, 20, true),
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true), 480, 0.03, 20, true),
     mats.shell,
   );
   lip.castShadow = true;
   head.add(lip);
   head.add(
     new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(gasket, true), 480, 0.015, 12, true),
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(gasket, true), 480, 0.0075, 10, true),
       mats.gasket,
     ),
   );
@@ -236,15 +264,17 @@ function buildHead(mats) {
   const glass = new THREE.Mesh(
     diskGeometry(VISOR.n, 64, 256, glassPoint),
     new THREE.MeshPhysicalMaterial({
+      // mostly self-lit so the coloured key lights don't tint the glass
+      color: new THREE.Color(0.6, 0.6, 0.6),
       map: visorTex,
       emissiveMap: visorTex,
       emissive: new THREE.Color('#ffffff'),
-      emissiveIntensity: 0.5,
-      roughness: 0.18,
+      emissiveIntensity: 0.8,
+      roughness: 0.12,
       metalness: 0,
+      ior: 2.2, // a stronger reflection than real glass, for the glossy toy look
       clearcoat: 1,
-      clearcoatRoughness: 0.04,
-      specularIntensity: 0.6,
+      clearcoatRoughness: 0.06,
     }),
   );
   head.add(glass);
@@ -272,7 +302,7 @@ function buildHead(mats) {
   // smile
   const smilePts = [];
   for (let i = 0; i <= 40; i++) {
-    const a = THREE.MathUtils.degToRad(192 + (156 * i) / 40);
+    const a = THREE.MathUtils.degToRad(196 + (148 * i) / 40);
     const x = SMILE.x + SMILE.r * Math.cos(a);
     const y = SMILE.y + SMILE.r + SMILE.r * Math.sin(a);
     smilePts.push(onGlass(x / VISOR.hw, (y - VISOR.cy) / VISOR.hh, 0.008, new THREE.Vector3()));
@@ -303,22 +333,23 @@ function buildHead(mats) {
   });
   const ringGeo = lathe(
     [
-      [0.312, -0.1],
-      [0.322, 0.0],
-      [0.32, 0.034],
-      [0.308, 0.057],
-      [0.286, 0.069],
-      [0.25, 0.073],
-      [0.222, 0.069],
-      [0.205, 0.057],
-      [0.198, 0.038],
-      [0.196, 0.0],
+      [0.318, -0.1],
+      [0.328, 0.0],
+      [0.329, 0.058],
+      [0.321, 0.088],
+      [0.302, 0.105],
+      [0.27, 0.112],
+      [0.24, 0.11],
+      [0.218, 0.1],
+      [0.205, 0.084],
+      [0.2, 0.06],
+      [0.198, 0.0],
     ],
     48,
     96,
   ).rotateX(Math.PI / 2);
   const capGeo = diskGeometry(2, 24, 96, (u, v, out) =>
-    out.set(u * 0.2, v * 0.2, 0.042 + 0.014 * (1 - u * u - v * v)),
+    out.set(u * 0.202, v * 0.202, 0.068 + 0.016 * (1 - u * u - v * v)),
   );
   const ears = [-1, 1].map((side) => {
     const ear = new THREE.Group();
@@ -328,15 +359,12 @@ function buildHead(mats) {
     const cap = new THREE.Mesh(capGeo, earCapMat);
     ear.add(ring, cap);
     const y = -0.06;
-    const z = 0.04;
-    const x =
-      side *
-      (HEAD.a * Math.pow(1 - Math.abs(y / HEAD.b) ** HEAD.p - Math.abs(z / HEAD.c) ** HEAD.p, 1 / HEAD.p) -
-        0.03);
+    const z = 0.08;
+    const x = side * (headX(y, z) - 0.03);
     ear.position.set(x, y, z);
     ear.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(side, 0, 0.22).normalize(),
+      new THREE.Vector3(side, 0, 0.26).normalize(),
     );
     head.add(ear);
     return ear;
@@ -344,14 +372,14 @@ function buildHead(mats) {
 
   // antennae
   const antennae = [-1, 1].map((side) => {
-    const x = side * 0.63;
-    const z = -0.06;
+    const x = side * 0.6;
+    const z = 0.04;
     const base = new THREE.Vector3(x, headY(x, z), z);
     const pivot = new THREE.Group();
     pivot.position.copy(base);
     pivot.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3(side * 0.42, 1, -0.04).normalize(),
+      new THREE.Vector3(side * 0.5, 1, 0.02).normalize(),
     );
     const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.05, 32), mats.shell);
     socket.position.y = 0.0;
@@ -396,14 +424,14 @@ function buildBody(mats) {
       [0.0, 0.03],
       [0.3, 0.035],
       [0.45, 0.07],
-      [0.52, 0.15],
-      [0.545, 0.26],
-      [0.54, 0.37],
-      [0.52, 0.47],
-      [0.48, 0.55],
-      [0.43, 0.61],
-      [0.3, 0.645],
-      [0.0, 0.65],
+      [0.525, 0.15],
+      [0.55, 0.27],
+      [0.545, 0.39],
+      [0.53, 0.49],
+      [0.505, 0.58],
+      [0.465, 0.64],
+      [0.36, 0.675],
+      [0.0, 0.685],
     ],
     80,
   );
@@ -423,20 +451,20 @@ function buildBody(mats) {
   const collar = new THREE.Mesh(
     lathe(
       [
-        [0.0, 0.605],
-        [0.37, 0.605],
-        [0.41, 0.611],
-        [0.425, 0.624],
-        [0.427, 0.636],
-        [0.417, 0.65],
-        [0.39, 0.658],
-        [0.3, 0.66],
-        [0.0, 0.66],
+        [0.0, 0.632],
+        [0.38, 0.632],
+        [0.42, 0.638],
+        [0.436, 0.652],
+        [0.438, 0.665],
+        [0.428, 0.68],
+        [0.4, 0.688],
+        [0.3, 0.69],
+        [0.0, 0.69],
       ],
       48,
       128,
     ),
-    mats.lavender,
+    mats.collar,
   );
   collar.scale.z = TORSO_Z;
   collar.castShadow = true;
@@ -459,9 +487,9 @@ function buildBody(mats) {
       bevelSegments: 4,
       curveSegments: 4,
     }),
-    mats.lilac,
+    mats.chinPlate,
   );
-  tab.position.copy(onTorso(0, 0.595, -0.045));
+  tab.position.copy(onTorso(0, 0.64, -0.045));
   tab.rotation.x = -0.32;
   tab.castShadow = true;
   body.add(tab);
@@ -469,10 +497,10 @@ function buildBody(mats) {
   // chest grooves  \_  ▬  _/
   for (const side of [-1, 1]) {
     const pts = [
-      [0.3, 0.495],
-      [0.225, 0.425],
-      [0.16, 0.418],
-      [0.115, 0.425],
+      [0.31, 0.525],
+      [0.235, 0.455],
+      [0.165, 0.448],
+      [0.12, 0.455],
     ].map(([x, y]) => onTorso(side * x, y, 0.002));
     const groove = new THREE.Mesh(
       new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.2), 32, 0.0075, 8, false),
@@ -482,10 +510,10 @@ function buildBody(mats) {
   }
 
   // glowing chest bar
-  const barPos = onTorso(0, 0.437, 0.0);
+  const barPos = onTorso(0, 0.467, 0.0);
   const bar = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.02, 0.16, 8, 16).rotateZ(Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 1.0, 1.0), toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 1.0, 1.0), toneMapped: false }),
   );
   bar.position.copy(barPos);
   bar.position.z -= 0.004;
@@ -493,7 +521,7 @@ function buildBody(mats) {
   bar.scale.z = 0.6;
   body.add(bar);
   const barGlow = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.24, 0.07),
+    new THREE.PlaneGeometry(0.26, 0.06),
     new THREE.MeshBasicMaterial({
       map: makeGlowTexture(),
       color: new THREE.Color(0.45, 0.95, 1.0),
@@ -510,21 +538,36 @@ function buildBody(mats) {
 
   // arms: lavender shoulder cap, soft blue arm angled out and forward, lilac hand nubs.
   // Each arm is a pivot at the shoulder; `rest` holds the pose the animation starts from.
+  // the arm widens towards the bottom like a mitten
+  const mittenGeo = lathe(
+    [
+      [0.0, -0.475],
+      [0.08, -0.47],
+      [0.128, -0.447],
+      [0.152, -0.4],
+      [0.156, -0.31],
+      [0.146, -0.2],
+      [0.13, -0.1],
+      [0.112, -0.03],
+      [0.0, 0.0],
+    ],
+    48,
+    64,
+  );
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.5, 0.58, -0.02);
+    arm.position.set(side * 0.54, 0.6, -0.02);
     arm.userData.side = side;
-    arm.userData.rest = { x: -0.14, z: side * 0.42 };
+    arm.userData.rest = { x: -0.16, z: side * 0.42 };
     arm.rotation.set(arm.userData.rest.x, 0, arm.userData.rest.z);
-    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.122, 48, 32), mats.lavender);
-    const limb = new THREE.Mesh(new THREE.CapsuleGeometry(0.138, 0.19, 12, 32), mats.arm);
-    limb.position.y = -0.21;
-    limb.scale.z = 0.92;
-    const fingers = new THREE.Mesh(new THREE.SphereGeometry(0.068, 32, 24), mats.hand);
-    fingers.position.set(-side * 0.02, -0.39, 0.05);
-    fingers.scale.set(1, 0.85, 1);
-    const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 24, 16), mats.hand);
-    thumb.position.set(-side * 0.085, -0.35, 0.075);
+    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.13, 48, 32), mats.lavender);
+    const limb = new THREE.Mesh(mittenGeo, mats.arm);
+    limb.scale.z = 0.86;
+    const fingers = new THREE.Mesh(new THREE.SphereGeometry(0.075, 32, 24), mats.hand);
+    fingers.position.set(-side * 0.04, -0.455, 0.07);
+    fingers.scale.set(1, 0.8, 1);
+    const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 24, 16), mats.hand);
+    thumb.position.set(-side * 0.115, -0.405, 0.06);
     for (const m of [shoulder, limb, fingers, thumb]) {
       m.castShadow = true;
       m.receiveShadow = true;
@@ -551,8 +594,8 @@ function buildBody(mats) {
   ).rotateX(Math.PI / 2);
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(legGeo, mats.feet);
-    leg.position.set(side * 0.42, 0.19, 0.12);
-    leg.scale.set(0.9, 0.88, 1);
+    leg.position.set(side * 0.41, 0.19, 0.12);
+    leg.scale.set(0.88, 0.92, 1);
     leg.rotation.set(-0.1, side * 0.06, 0);
     leg.castShadow = true;
     leg.receiveShadow = true;
