@@ -32,32 +32,41 @@ controls.maxDistance = 12;
 controls.update();
 
 // --- lights: soft white key, baby-blue from the right, pink from the left ---
+// The light rig (and the studio reflections) turns with the camera, so the robot keeps
+// the same look from every angle, like a product shot on a turntable.
+const rig = new THREE.Group();
+rig.position.copy(controls.target);
+scene.add(rig);
+const cameraStart = camera.quaternion.clone().invert();
+
 const key = new THREE.DirectionalLight('#fffaf8', 2.4);
-key.position.set(-5.5, 7, 4);
+key.position.set(-5.5, 6, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.left = -2;
-key.shadow.camera.right = 2;
-key.shadow.camera.top = 3;
-key.shadow.camera.bottom = -1;
+key.shadow.camera.left = -2.2;
+key.shadow.camera.right = 2.2;
+key.shadow.camera.top = 2.2;
+key.shadow.camera.bottom = -2.2;
 key.shadow.camera.near = 1;
 key.shadow.camera.far = 20;
 key.shadow.radius = 6;
 key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.02;
-scene.add(key);
+rig.add(key, key.target);
 
 const blue = new THREE.DirectionalLight('#45acff', 3.6);
-blue.position.set(6, 2, 0.8);
-scene.add(blue);
-
+blue.position.set(6, 1, 0.8);
 const fill = new THREE.DirectionalLight('#fbf7ff', 0.9);
-fill.position.set(0.5, 1.5, 8);
-scene.add(fill);
-
+fill.position.set(0.5, 0.5, 8);
 const pink = new THREE.DirectionalLight('#ff8fcb', 1.8);
-pink.position.set(-6, -3, 2.5);
-scene.add(pink);
+pink.position.set(-6, -4, 2.5);
+rig.add(blue, fill, pink);
+for (const light of [blue, fill, pink]) rig.add(light.target);
+
+function updateRig() {
+  rig.quaternion.multiplyQuaternions(camera.quaternion, cameraStart);
+  scene.environmentRotation.setFromQuaternion(rig.quaternion);
+}
 
 // --- robot ---
 const robot = createRobot();
@@ -143,6 +152,7 @@ function animate() {
   timer.update();
   const t = timer.getElapsed();
   controls.update();
+  updateRig();
 
   if (!still) {
     neck.position.y = neckY + Math.sin(t * 1.6) * 0.012;

@@ -303,23 +303,22 @@ function buildHead(mats) {
   });
   const ringGeo = lathe(
     [
-      [0.34, -0.1],
-      [0.352, 0.0],
-      [0.348, 0.07],
-      [0.334, 0.112],
-      [0.306, 0.138],
-      [0.27, 0.148],
-      [0.234, 0.141],
-      [0.21, 0.122],
-      [0.2, 0.095],
-      [0.196, 0.06],
-      [0.195, 0.0],
+      [0.312, -0.1],
+      [0.322, 0.0],
+      [0.32, 0.034],
+      [0.308, 0.057],
+      [0.286, 0.069],
+      [0.25, 0.073],
+      [0.222, 0.069],
+      [0.205, 0.057],
+      [0.198, 0.038],
+      [0.196, 0.0],
     ],
     48,
     96,
   ).rotateX(Math.PI / 2);
   const capGeo = diskGeometry(2, 24, 96, (u, v, out) =>
-    out.set(u * 0.2, v * 0.2, 0.085 + 0.022 * (1 - u * u - v * v)),
+    out.set(u * 0.2, v * 0.2, 0.042 + 0.014 * (1 - u * u - v * v)),
   );
   const ears = [-1, 1].map((side) => {
     const ear = new THREE.Group();
@@ -329,15 +328,15 @@ function buildHead(mats) {
     const cap = new THREE.Mesh(capGeo, earCapMat);
     ear.add(ring, cap);
     const y = -0.06;
-    const z = -0.02;
+    const z = 0.04;
     const x =
       side *
       (HEAD.a * Math.pow(1 - Math.abs(y / HEAD.b) ** HEAD.p - Math.abs(z / HEAD.c) ** HEAD.p, 1 / HEAD.p) -
-        0.035);
+        0.03);
     ear.position.set(x, y, z);
     ear.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(side, 0, 0.28).normalize(),
+      new THREE.Vector3(side, 0, 0.22).normalize(),
     );
     head.add(ear);
     return ear;
