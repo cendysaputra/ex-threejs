@@ -64,7 +64,7 @@ const robot = createRobot();
 robot.rotation.y = -0.34;
 scene.add(robot);
 
-const { neckY, neck, eyes, ears, antennae, barGlow } = robot.userData;
+const { neckY, neck, eyes, ears, antennae, arms, barGlow } = robot.userData;
 
 function resize() {
   const w = window.innerWidth;
@@ -94,6 +94,51 @@ function blinkAmount(t) {
   return Math.sin((d / 0.18) * Math.PI);
 }
 
+// Wave with the arm nearest the viewer: automatically every few seconds, or on tap.
+const WAVE_RAISE = 0.45;
+const WAVE_HOLD = 2.4;
+const WAVE_LOWER = 0.55;
+const WAVE_LEN = WAVE_RAISE + WAVE_HOLD + WAVE_LOWER;
+let waveStart = 1.5;
+
+const easeInOut = (x) => x * x * (3 - 2 * x);
+
+function waveAmount(t) {
+  const d = t - waveStart;
+  if (d < 0 || d > WAVE_LEN) return { lift: 0, wiggle: 0 };
+  let lift = 1;
+  if (d < WAVE_RAISE) lift = easeInOut(d / WAVE_RAISE);
+  else if (d > WAVE_RAISE + WAVE_HOLD) lift = easeInOut(1 - (d - WAVE_RAISE - WAVE_HOLD) / WAVE_LOWER);
+  return { lift, wiggle: Math.sin(Math.max(0, d - WAVE_RAISE * 0.6) * Math.PI * 4.4) };
+}
+
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', (e) => (downAt = { x: e.clientX, y: e.clientY }));
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt || still) return;
+  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+  const t = timer.getElapsed();
+  if (moved < 6 && t - waveStart > WAVE_LEN) waveStart = t;
+  downAt = null;
+});
+
+function animateArms(t) {
+  const { lift, wiggle } = waveAmount(t);
+  if (t - waveStart > WAVE_LEN) waveStart = t + 5 + Math.random() * 4;
+  for (const arm of arms) {
+    const { side, rest } = arm.userData;
+    const sway = Math.sin(t * 1.3 + side) * 0.06;
+    let z = rest.z + side * sway;
+    let x = rest.x + Math.sin(t * 1.1 + side * 0.5) * 0.04;
+    if (side > 0) {
+      z = THREE.MathUtils.lerp(z, 1.85 + wiggle * 0.3, lift);
+      x = THREE.MathUtils.lerp(x, 0.35, lift);
+    }
+    arm.rotation.set(x, 0, z);
+  }
+  return lift;
+}
+
 function animate() {
   timer.update();
   const t = timer.getElapsed();
@@ -101,7 +146,8 @@ function animate() {
 
   if (!still) {
     neck.position.y = neckY + Math.sin(t * 1.6) * 0.012;
-    neck.rotation.z = Math.sin(t * 0.8) * 0.035;
+    const lift = animateArms(t);
+    neck.rotation.z = Math.sin(t * 0.8) * 0.035 - lift * 0.07;
     neck.rotation.x = Math.sin(t * 0.6 + 1) * 0.02;
     antennae.forEach((a, i) => {
       a.rotation.z = (i ? -1 : 1) * (Math.sin(t * 2.4 + i) * 0.05);
@@ -109,7 +155,7 @@ function animate() {
     const b = blinkAmount(t);
     for (const e of eyes) e.scale.y = 1 - 0.88 * b;
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
-    barGlow.material.opacity = 0.4 + 0.3 * pulse;
+    barGlow.material.opacity = 0.15 + 0.15 * pulse;
     for (const ear of ears) ear.children[1].material.emissiveIntensity = 0.62 + 0.15 * pulse;
   }
 

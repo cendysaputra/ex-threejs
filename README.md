@@ -7,7 +7,7 @@ npm install
 npm run dev
 ```
 
-Drag to orbit, scroll to zoom. Add `?still` to the URL to disable the idle animation.
+Drag to orbit, scroll to zoom, tap the robot to make it wave. Add `?still` to the URL to disable the idle animation.
 
 - `src/robot.js` – robot geometry and materials
 - `src/textures.js` – canvas textures (visor, eyes, ear lights)

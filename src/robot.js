@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { makeEarTexture, makeEyeTexture, makeGlowTexture, makeVisorTexture } from './textures.js';
 
 // ---------------------------------------------------------------------------
@@ -425,15 +424,15 @@ function buildBody(mats) {
   const collar = new THREE.Mesh(
     lathe(
       [
-        [0.0, 0.6],
-        [0.38, 0.6],
-        [0.425, 0.608],
-        [0.442, 0.625],
-        [0.444, 0.64],
-        [0.432, 0.658],
-        [0.4, 0.668],
-        [0.3, 0.672],
-        [0.0, 0.672],
+        [0.0, 0.605],
+        [0.37, 0.605],
+        [0.41, 0.611],
+        [0.425, 0.624],
+        [0.427, 0.636],
+        [0.417, 0.65],
+        [0.39, 0.658],
+        [0.3, 0.66],
+        [0.0, 0.66],
       ],
       48,
       128,
@@ -463,7 +462,7 @@ function buildBody(mats) {
     }),
     mats.lilac,
   );
-  tab.position.copy(onTorso(0, 0.585, -0.045));
+  tab.position.copy(onTorso(0, 0.595, -0.045));
   tab.rotation.x = -0.32;
   tab.castShadow = true;
   body.add(tab);
@@ -486,7 +485,7 @@ function buildBody(mats) {
   // glowing chest bar
   const barPos = onTorso(0, 0.437, 0.0);
   const bar = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.022, 0.15, 8, 16).rotateZ(Math.PI / 2),
+    new THREE.CapsuleGeometry(0.02, 0.16, 8, 16).rotateZ(Math.PI / 2),
     new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 1.0, 1.0), toneMapped: false }),
   );
   bar.position.copy(barPos);
@@ -500,7 +499,7 @@ function buildBody(mats) {
       map: makeGlowTexture(),
       color: new THREE.Color(0.45, 0.95, 1.0),
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.25,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       toneMapped: false,
@@ -510,19 +509,24 @@ function buildBody(mats) {
   barGlow.rotation.x = -0.25;
   body.add(barGlow);
 
-  // arms: lavender shoulder cap, soft blue mitten, lilac thumb nub
+  // arms: lavender shoulder cap, soft blue arm angled out and forward, lilac hand nubs.
+  // Each arm is a pivot at the shoulder; `rest` holds the pose the animation starts from.
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.46, 0.56, -0.02);
-    arm.rotation.z = side * 0.07;
-    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.125, 48, 32), mats.lavender);
-    shoulder.position.set(side * 0.06, -0.03, 0);
-    const upper = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.5, 0.32, 6, 0.115), mats.arm);
-    upper.position.set(side * 0.14, -0.27, 0.03);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.1, 40, 28), mats.hand);
-    hand.scale.set(0.85, 0.65, 1.0);
-    hand.position.set(side * 0.09, -0.5, 0.11);
-    for (const m of [shoulder, upper, hand]) {
+    arm.position.set(side * 0.5, 0.58, -0.02);
+    arm.userData.side = side;
+    arm.userData.rest = { x: -0.14, z: side * 0.42 };
+    arm.rotation.set(arm.userData.rest.x, 0, arm.userData.rest.z);
+    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.122, 48, 32), mats.lavender);
+    const limb = new THREE.Mesh(new THREE.CapsuleGeometry(0.138, 0.19, 12, 32), mats.arm);
+    limb.position.y = -0.21;
+    limb.scale.z = 0.92;
+    const fingers = new THREE.Mesh(new THREE.SphereGeometry(0.068, 32, 24), mats.hand);
+    fingers.position.set(-side * 0.02, -0.39, 0.05);
+    fingers.scale.set(1, 0.85, 1);
+    const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 24, 16), mats.hand);
+    thumb.position.set(-side * 0.085, -0.35, 0.075);
+    for (const m of [shoulder, limb, fingers, thumb]) {
       m.castShadow = true;
       m.receiveShadow = true;
       arm.add(m);
@@ -548,8 +552,8 @@ function buildBody(mats) {
   ).rotateX(Math.PI / 2);
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(legGeo, mats.feet);
-    leg.position.set(side * 0.43, 0.24, 0.1);
-    leg.scale.set(1.06, 1.06, 1);
+    leg.position.set(side * 0.42, 0.19, 0.12);
+    leg.scale.set(0.9, 0.88, 1);
     leg.rotation.set(-0.1, side * 0.06, 0);
     leg.castShadow = true;
     leg.receiveShadow = true;
