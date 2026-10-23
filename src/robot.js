@@ -182,7 +182,7 @@ function lathe(points, count = 64, segs = 96) {
 // Materials
 // ---------------------------------------------------------------------------
 
-function plastic(color, extra = {}) {
+export function plastic(color, extra = {}) {
   return new THREE.MeshPhysicalMaterial({
     color,
     roughness: 0.42,

@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStudioEnvironment } from './environment.js';
 import { createAnimator } from './animation.js';
 import { createRobot } from './robot.js';
+import { makeBlobTexture } from './textures.js';
+import { createToys } from './toys.js';
 
 const params = new URLSearchParams(location.search);
 const still = params.has('still');
@@ -43,11 +45,11 @@ const cameraStart = camera.quaternion.clone().invert();
 const key = new THREE.DirectionalLight('#fffaf8', 2.8);
 key.position.set(-5.5, 6, 4);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.left = -2.2;
-key.shadow.camera.right = 2.2;
-key.shadow.camera.top = 2.2;
-key.shadow.camera.bottom = -2.2;
+key.shadow.mapSize.set(3072, 3072);
+key.shadow.camera.left = -3.4;
+key.shadow.camera.right = 3.4;
+key.shadow.camera.top = 3.4;
+key.shadow.camera.bottom = -3.4;
 key.shadow.camera.near = 1;
 key.shadow.camera.far = 20;
 key.shadow.radius = 2;
@@ -81,31 +83,17 @@ neck.rotation.y = 0.08;
 neck.position.x = 0.06;
 
 // faint contact shadow so the robot reads as standing on the floor when it gets up
-const contactShadow = (() => {
-  const S = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = S;
-  const ctx = canvas.getContext('2d');
-  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-  g.addColorStop(0, 'rgba(120, 100, 170, 1)');
-  g.addColorStop(0.5, 'rgba(120, 100, 170, 0.45)');
-  g.addColorStop(1, 'rgba(120, 100, 170, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, S, S);
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.2, 1.6).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({
-      map: new THREE.CanvasTexture(canvas),
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  mesh.position.set(robot.position.x, 0.002, 0.05);
-  scene.add(mesh);
-  return mesh;
-})();
+const contactShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.2, 1.6).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({
+    map: makeBlobTexture(),
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  }),
+);
+contactShadow.position.set(robot.position.x, 0.002, 0.05);
+scene.add(contactShadow);
 
 function updateContactShadow() {
   // a hop lifts the robot off the floor: the shadow fades and shrinks a little
@@ -118,8 +106,8 @@ function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
-  // keep the whole robot in frame on narrow screens
-  const fit = Math.max(1, 0.7 / camera.aspect);
+  // keep the robot and its toys in frame on narrow screens
+  const fit = Math.max(1, 1.05 / camera.aspect);
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(14)) * fit));
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
@@ -131,14 +119,17 @@ resize();
 const timer = new THREE.Timer();
 const animator = createAnimator(robot);
 
-// tap (without dragging) to make the robot wave, or to have another go at standing
-let downAt = null;
-renderer.domElement.addEventListener('pointerdown', (e) => (downAt = { x: e.clientX, y: e.clientY }));
-renderer.domElement.addEventListener('pointerup', (e) => {
-  if (!downAt || still) return;
-  if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) animator.tap(timer.getElapsed());
-  downAt = null;
+// toys around the robot; tapping the robot makes it wave, or have another go at standing
+const toys = createToys({
+  scene,
+  camera,
+  canvas: renderer.domElement,
+  controls,
+  robot,
+  animator,
+  onRobotTap: () => !still && animator.tap(timer.getElapsed()),
 });
+if (still) toys.update(0, 0);
 
 // keep the framing centred as the robot stands up
 const baseTargetY = controls.target.y;
@@ -152,11 +143,13 @@ function followRobot() {
 function animate() {
   timer.update();
   const t = timer.getElapsed();
+  const dt = timer.getDelta();
   controls.update();
   updateRig();
 
   if (!still) {
-    animator.update(t);
+    animator.update(t, dt);
+    toys.update(t, dt);
     followRobot();
     updateContactShadow();
   }

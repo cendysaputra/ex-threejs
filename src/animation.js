@@ -115,6 +115,10 @@ export function createAnimator(robot) {
   let nextWave = 12.5;
   let nextBlink = 2.5;
 
+  // glancing at something (a toy being played with): target angles and when it started
+  const look = { yaw: 0, nod: 0, until: -Infinity, weight: 0 };
+  const _local = new THREE.Vector3();
+
   function blinkAmount(t) {
     const d = t - nextBlink;
     if (d < 0) return 0;
@@ -151,6 +155,17 @@ export function createAnimator(robot) {
       return hipLift(pose.leg) + pose.hop;
     },
 
+    /** Turn the head towards a point in the world for a couple of seconds. */
+    lookAt(point, t) {
+      _local.copy(point);
+      robot.worldToLocal(_local);
+      const headY = neckY + 0.83;
+      look.yaw = THREE.MathUtils.clamp(Math.atan2(_local.x, _local.z) - base.neckYaw, -0.55, 0.55);
+      const down = Math.atan2(headY - _local.y, Math.hypot(_local.x, _local.z));
+      look.nod = THREE.MathUtils.clamp(down * 0.45, -0.25, 0.3);
+      look.until = t + 2.2;
+    },
+
     /** How far a hop has taken the feet off the floor. */
     get air() {
       return pose.hop;
@@ -164,7 +179,7 @@ export function createAnimator(robot) {
       else if (canWave(t)) waveStart = t;
     },
 
-    update(t) {
+    update(t, dt = 1 / 60) {
       const r = routineTime(t);
       poseAt(r, pose);
 
@@ -199,9 +214,10 @@ export function createAnimator(robot) {
 
       // head: breathing bob, nods and shakes from the pose
       neck.position.y = neckY + Math.sin(t * 1.6) * 0.012;
+      look.weight += ((t < look.until ? 1 : 0) - look.weight) * (1 - Math.exp(-dt * 6));
       neck.rotation.set(
-        Math.sin(t * 0.6 + 1) * 0.02 + pose.nod,
-        base.neckYaw + pose.turn,
+        Math.sin(t * 0.6 + 1) * 0.02 + pose.nod + look.nod * look.weight,
+        base.neckYaw + pose.turn + look.yaw * look.weight,
         Math.sin(t * 0.8) * 0.035 - wave.lift * 0.07,
       );
 

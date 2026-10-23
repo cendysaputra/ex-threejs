@@ -161,3 +161,37 @@ export function makeGlowTexture() {
   ]);
   return canvasTexture(canvas);
 }
+
+/** Soft round shadow blob for contact shadows on the floor. */
+export function makeBlobTexture() {
+  const S = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  radial(ctx, S / 2, S / 2, S / 2, S / 2, [
+    [0, 'rgba(120, 100, 170, 1)'],
+    [0.5, 'rgba(120, 100, 170, 0.45)'],
+    [1, 'rgba(120, 100, 170, 0)'],
+  ]);
+  return canvasTexture(canvas);
+}
+
+/** Beach-ball style stripes for the toy ball (equirectangular). */
+export function makeBallTexture() {
+  const W = 512;
+  const H = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#a9cdf7', '#ffffff', '#f6b8df', '#ffffff', '#c6b5f4', '#ffffff'];
+  colors.forEach((c, i) => {
+    ctx.fillStyle = c;
+    ctx.fillRect((i * W) / colors.length, 0, W / colors.length + 1, H);
+  });
+  // white caps at the poles
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H * 0.08);
+  ctx.fillRect(0, H * 0.92, W, H * 0.08);
+  return canvasTexture(canvas);
+}
