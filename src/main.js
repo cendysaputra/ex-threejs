@@ -3,16 +3,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStudioEnvironment } from './environment.js';
 import { createAnimator } from './animation.js';
 import { createRobot } from './robot.js';
-import { FLOOR_COLOR, makeBlobTexture, makeMatTexture } from './textures.js';
+import { makeBlobTexture, makeFloorTexture } from './textures.js';
 import { createToys } from './toys.js';
 
 const params = new URLSearchParams(location.search);
 const still = params.has('still');
-const CANVAS_WIDTH = 1200; // the scene is laid out for this width; narrower screens use their full width
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(Math.min(CANVAS_WIDTH, window.innerWidth), window.innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xffffff, 1);
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -99,30 +98,22 @@ const contactShadow = new THREE.Mesh(
 contactShadow.position.set(robot.position.x, 0.002, 0.05);
 scene.add(contactShadow);
 
-// floor: a pastel play mat on a pale floor that fades into the white background in
-// the distance. Both are drawn unlit and underneath everything, with a shadow
-// catcher on top of them.
+// floor: a pastel polka-dot play mat covering the whole floor and fading into the
+// white background in the distance. It is drawn unlit and underneath everything,
+// with a shadow catcher on top of it.
 scene.fog = new THREE.Fog('#ffffff', 14, 40);
 const FLOOR_SIZE = 120;
+const DOT_SPACING = 0.78; // world size of one floor tile (two dots)
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: FLOOR_COLOR, toneMapped: false, depthWrite: false }),
-);
-floor.renderOrder = -2;
-scene.add(floor);
-
-const MAT_RADIUS = 3.9;
-const MAT_MARGIN = 0.5;
-const mat = new THREE.Mesh(
-  new THREE.CircleGeometry(MAT_RADIUS + MAT_MARGIN, 128).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({
-    map: makeMatTexture(MAT_RADIUS, MAT_MARGIN),
+    map: makeFloorTexture(DOT_SPACING, FLOOR_SIZE / DOT_SPACING),
     toneMapped: false,
     depthWrite: false,
   }),
 );
-mat.renderOrder = -1;
-scene.add(mat);
+floor.renderOrder = -1;
+scene.add(floor);
 
 const floorShadows = new THREE.Mesh(
   new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2),
@@ -139,8 +130,18 @@ function updateContactShadow() {
   contactShadow.scale.setScalar(1 - Math.min(0.3, air * 2));
 }
 
+// keep the page at 100%: block pinch and ctrl/cmd + wheel/plus/minus browser zoom.
+// (ctrl/cmd + 0 still works, so a page that was already zoomed can be reset.)
+window.addEventListener('wheel', (e) => (e.ctrlKey || e.metaKey) && e.preventDefault(), { passive: false });
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '_'].includes(e.key)) e.preventDefault();
+});
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+
 function resize() {
-  const w = Math.min(CANVAS_WIDTH, window.innerWidth);
+  const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
   // keep the robot and its toys in frame on narrow screens (phones can pinch out for the outer toys)

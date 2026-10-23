@@ -196,64 +196,30 @@ export function makeBallTexture() {
   return canvasTexture(canvas);
 }
 
-export const FLOOR_COLOR = '#f4f1fa';
-
 /**
- * Round pastel play mat seen from above, with a lilac rim, a stitched line and
- * soft dots. The texture covers a square of side 2 * (mat + margin) world units;
- * outside the mat it is the floor colour, so it blends into the floor.
+ * One repeating tile of the play-mat floor: soft pink with staggered polka dots.
+ * The tile covers `size` x `size` world units.
  */
-export function makeMatTexture(mat, margin) {
-  const S = 2048;
+export function makeFloorTexture(size, repeat) {
+  const S = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = S;
   const ctx = canvas.getContext('2d');
-  const c = S / 2;
-  const u = S / (2 * (mat + margin)); // pixels per world unit
-
-  ctx.fillStyle = FLOOR_COLOR;
+  ctx.fillStyle = '#fbeef5';
   ctx.fillRect(0, 0, S, S);
-
-  // the mat's soft edge on the floor
-  radial(ctx, c, c, (mat + margin * 0.8) * u, (mat + margin * 0.8) * u, [
-    [0, 'rgba(205, 188, 238, 0.45)'],
-    [mat / (mat + margin * 0.8), 'rgba(205, 188, 238, 0.45)'],
-    [1, 'rgba(205, 188, 238, 0)'],
-  ]);
-  ctx.fillStyle = '#e6dcfa';
-  ctx.beginPath();
-  ctx.arc(c, c, mat * u, 0, Math.PI * 2);
-  ctx.fill();
-  const inner = mat - 0.16;
-  const fill = ctx.createRadialGradient(c, c, 0, c, c, inner * u);
-  fill.addColorStop(0, '#fdf5f9');
-  fill.addColorStop(1, '#fbecf4');
-  ctx.fillStyle = fill;
-  ctx.beginPath();
-  ctx.arc(c, c, inner * u, 0, Math.PI * 2);
-  ctx.fill();
-
-  // stitched line just inside the rim
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.lineWidth = 0.025 * u;
-  ctx.setLineDash([0.09 * u, 0.07 * u]);
-  ctx.beginPath();
-  ctx.arc(c, c, (inner - 0.1) * u, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // polka dots
-  ctx.fillStyle = 'rgba(244, 206, 228, 0.5)';
-  const step = 0.55;
-  for (let y = -inner; y <= inner; y += step) {
-    const row = Math.round(y / step);
-    for (let x = -inner + (row % 2 ? step / 2 : 0); x <= inner; x += step) {
-      if (Math.hypot(x, y) > inner - 0.3) continue;
-      ctx.beginPath();
-      ctx.arc(c + x * u, c + y * u, 0.055 * u, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  ctx.fillStyle = '#f5d5e7';
+  const r = (0.055 / size) * S;
+  for (const [x, y] of [
+    [0.25, 0.25],
+    [0.75, 0.75],
+  ]) {
+    ctx.beginPath();
+    ctx.arc(x * S, y * S, r, 0, Math.PI * 2);
+    ctx.fill();
   }
-
-  return canvasTexture(canvas);
+  const tex = canvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.anisotropy = 16;
+  return tex;
 }
