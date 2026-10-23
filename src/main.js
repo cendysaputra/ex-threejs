@@ -21,13 +21,13 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.environment = createStudioEnvironment(renderer);
-scene.environmentIntensity = 0.28;
+scene.environmentIntensity = 0.55;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-camera.position.set(0, 2.75, 9.2);
+camera.position.set(0, 2.95, 9.6);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1.08, 0);
+controls.target.set(0, 1.38, 0);
 controls.enableDamping = true;
 controls.enablePan = false;
 controls.minDistance = 3.5;
@@ -37,7 +37,7 @@ controls.update();
 controls.minPolarAngle = 0.2;
 controls.maxPolarAngle = controls.getPolarAngle();
 
-// --- lights: soft white key, baby-blue from the right, pink from the left ---
+// --- lights: a soft white studio: key from the upper left, fill from the right, rim behind ---
 // The light rig (and the studio reflections) turns with the camera, so the robot keeps
 // the same look from every angle, like a product shot on a turntable.
 const rig = new THREE.Group();
@@ -45,7 +45,7 @@ rig.position.copy(controls.target);
 scene.add(rig);
 const cameraStart = camera.quaternion.clone().invert();
 
-const key = new THREE.DirectionalLight('#fffaf8', 2.8);
+const key = new THREE.DirectionalLight('#fffaf8', 2.6);
 key.position.set(-5.5, 6, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(4096, 4096);
@@ -60,14 +60,14 @@ key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.03;
 rig.add(key, key.target);
 
-const blue = new THREE.DirectionalLight('#45acff', 3.6);
-blue.position.set(6, 1, 0.8);
-const fill = new THREE.DirectionalLight('#fbf7ff', 0.4);
-fill.position.set(0.5, 0.5, 8);
-const pink = new THREE.DirectionalLight('#ff8fcb', 1.8);
-pink.position.set(-4, -2.5, -5);
-rig.add(blue, fill, pink);
-for (const light of [blue, fill, pink]) rig.add(light.target);
+const fill = new THREE.DirectionalLight('#fff7fa', 1.3);
+fill.position.set(6, 1.5, 3);
+const front = new THREE.DirectionalLight('#ffffff', 0.5);
+front.position.set(0.5, 0.5, 8);
+const rim = new THREE.DirectionalLight('#fff4f8', 1.2);
+rim.position.set(-3, 2.5, -6);
+rig.add(fill, front, rim);
+for (const light of [fill, front, rim]) rig.add(light.target);
 
 function updateRig() {
   rig.quaternion.multiplyQuaternions(camera.quaternion, cameraStart);
@@ -76,16 +76,10 @@ function updateRig() {
 
 // --- robot ---
 const robot = createRobot();
-robot.rotation.y = -0.32;
-robot.position.x = -0.06;
+robot.rotation.y = 0.38; // turned a little to its left, as in the reference
 scene.add(robot);
 
-const { neck } = robot.userData;
-// head turned a touch less than the body and sitting a little off-centre, as in the reference
-neck.rotation.y = 0.08;
-neck.position.x = 0.06;
-
-// faint contact shadow so the robot reads as standing on the floor when it gets up
+// faint contact shadow under the robot's feet
 const contactShadow = new THREE.Mesh(
   new THREE.PlaneGeometry(2.2, 1.6).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({
@@ -145,7 +139,7 @@ function resize() {
   const h = window.innerHeight;
   camera.aspect = w / h;
   // keep the robot and its toys in frame on narrow screens (phones can pinch out for the outer toys)
-  const fit = THREE.MathUtils.clamp(1.55 / camera.aspect, 1, 2.2);
+  const fit = THREE.MathUtils.clamp(1.35 / camera.aspect, 1, 1.75);
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(14)) * fit));
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
