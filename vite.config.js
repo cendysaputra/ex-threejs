@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         pastelRobot: resolve(import.meta.dirname, 'backup/pastel-robot/index.html'),
+        pinkRobot: resolve(import.meta.dirname, 'backup/pink-robot/index.html'),
       },
     },
   },

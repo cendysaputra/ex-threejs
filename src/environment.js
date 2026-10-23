@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Soft white photo studio used for reflections and ambient light: bright
- * above, a little darker below, plus a few big softboxes for the glossy
- * highlights.
+ * Soft pastel photo studio used for reflections and ambient light:
+ * white from above, baby blue from the right, pink from the left, plus a
+ * few big softboxes for the glossy highlights.
  */
 export function createStudioEnvironment(renderer) {
   const scene = new THREE.Scene();
@@ -24,11 +24,11 @@ export function createStudioEnvironment(renderer) {
         void main() {
           vec3 d = normalize(vDir);
           vec3 top = vec3(1.0, 1.0, 1.0);
-          vec3 mid = vec3(0.86, 0.86, 0.89);
-          vec3 bottom = vec3(0.74, 0.73, 0.77);
+          vec3 mid = vec3(0.9, 0.9, 0.98);
+          vec3 bottom = vec3(0.86, 0.78, 0.95);
           vec3 c = d.y > 0.0 ? mix(mid, top, pow(d.y, 0.7)) : mix(mid, bottom, pow(-d.y, 0.7));
-          c = mix(c, vec3(0.93, 0.95, 1.0), smoothstep(0.1, 0.9, d.x) * 0.4);
-          c = mix(c, vec3(1.0, 0.94, 0.96), smoothstep(0.1, 0.9, -d.x) * 0.3);
+          c = mix(c, vec3(0.62, 0.8, 1.0), smoothstep(0.1, 0.9, d.x) * 0.75);
+          c = mix(c, vec3(1.0, 0.82, 0.92), smoothstep(0.1, 0.9, -d.x) * smoothstep(0.5, -0.4, d.y) * 0.6);
           gl_FragColor = vec4(c, 1.0);
         }`,
     }),
@@ -48,8 +48,8 @@ export function createStudioEnvironment(renderer) {
     scene.add(mesh);
   };
   softbox(14, 8, '#ffffff', 2.2, -6, 9, 8); // key, top left front
-  softbox(5, 10, '#f4f7ff', 1.8, 12, 2, 2); // strip, right
-  softbox(5, 9, '#fff6f9', 1.2, -12, -1, 4); // strip, left
+  softbox(5, 10, '#a8d2ff', 2.0, 12, 2, 2); // blue strip, right
+  softbox(5, 9, '#ffb6df', 1.4, -12, -1, 4); // pink strip, left
   softbox(10, 4, '#ffffff', 1.2, 0, 12, -4); // top back
   // strips that draw the glossy crescent along the upper left of the visor
   softbox(1.6, 14, '#ffffff', 7, -12, 4, -1);
