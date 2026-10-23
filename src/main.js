@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStudioEnvironment } from './environment.js';
 import { createAnimator } from './animation.js';
 import { createRobot } from './robot.js';
-import { makeBlobTexture } from './textures.js';
+import { FLOOR_COLOR, makeBlobTexture, makeMatTexture } from './textures.js';
 import { createToys } from './toys.js';
 
 const params = new URLSearchParams(location.search);
@@ -34,6 +34,9 @@ controls.enablePan = false;
 controls.minDistance = 3.5;
 controls.maxDistance = 12;
 controls.update();
+// orbit around and up over the robot, but never lower than the starting view
+controls.minPolarAngle = 0.2;
+controls.maxPolarAngle = controls.getPolarAngle();
 
 // --- lights: soft white key, baby-blue from the right, pink from the left ---
 // The light rig (and the studio reflections) turns with the camera, so the robot keeps
@@ -96,13 +99,38 @@ const contactShadow = new THREE.Mesh(
 contactShadow.position.set(robot.position.x, 0.002, 0.05);
 scene.add(contactShadow);
 
-// invisible floor that only shows the shadows cast on it
+// floor: a pastel play mat on a pale floor that fades into the white background in
+// the distance. Both are drawn unlit and underneath everything, with a shadow
+// catcher on top of them.
+scene.fog = new THREE.Fog('#ffffff', 14, 40);
+const FLOOR_SIZE = 120;
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2),
-  new THREE.ShadowMaterial({ color: '#6f5fa8', opacity: 0.2 }),
+  new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: FLOOR_COLOR, toneMapped: false, depthWrite: false }),
 );
-floor.receiveShadow = true;
+floor.renderOrder = -2;
 scene.add(floor);
+
+const MAT_RADIUS = 3.9;
+const MAT_MARGIN = 0.5;
+const mat = new THREE.Mesh(
+  new THREE.CircleGeometry(MAT_RADIUS + MAT_MARGIN, 128).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({
+    map: makeMatTexture(MAT_RADIUS, MAT_MARGIN),
+    toneMapped: false,
+    depthWrite: false,
+  }),
+);
+mat.renderOrder = -1;
+scene.add(mat);
+
+const floorShadows = new THREE.Mesh(
+  new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2),
+  new THREE.ShadowMaterial({ color: '#6f5fa8', opacity: 0.2, depthWrite: false }),
+);
+floorShadows.receiveShadow = true;
+floorShadows.renderOrder = -1;
+scene.add(floorShadows);
 
 function updateContactShadow() {
   // a hop lifts the robot off the floor: the shadow fades and shrinks a little

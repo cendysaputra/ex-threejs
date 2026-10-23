@@ -17,6 +17,19 @@
         margin: 0 auto;
         touch-action: none;
       }
+      /* when the page is wider than the 1200px canvas, let its sides melt into the page */
+      @media (min-width: 1201px) {
+        canvas {
+          -webkit-mask-image: linear-gradient(
+            to right,
+            transparent,
+            #000 70px,
+            #000 calc(100% - 70px),
+            transparent
+          );
+          mask-image: linear-gradient(to right, transparent, #000 70px, #000 calc(100% - 70px), transparent);
+        }
+      }
     </style>
   </head>
   <body>
