@@ -9,9 +9,9 @@ npm run dev
 
 The robot starts sitting, then works its way up to standing like a toddler: it rocks to build momentum, pushes off the floor, plops back down on the first try and makes it on the second. After a while it sits back down and tries again.
 
-Pastel toys sit around it: drag a block, the ball, the ring, the cone or the pill to move it (let go mid-swing to fling it), or tap one to make it hop and flip. Tap the star to spin it and the bubbles to pop them. The robot looks at whatever you play with.
+Pastel toys lie on the floor around it: blocks, a beach ball, a ring, a cone, a pill, a star and a few marbles. Drag one to move it (let go mid-swing to fling it) or tap it to make it hop and flip; the round ones roll. Everything casts a soft drop shadow on the floor, and the robot looks at whatever you play with.
 
-Drag the background to orbit, scroll to zoom. Tap the robot while it sits to make it try to stand, or while it stands to make it wave. Add `?still` to the URL to show the static sitting pose.
+The canvas is 1200px wide (full width on narrower screens). Drag the background to orbit, scroll or pinch to zoom. Tap the robot while it sits to make it try to stand, or while it stands to make it wave. Add `?still` to the URL to show the static sitting pose.
 
 - `src/robot.js` – robot geometry and materials
 - `src/textures.js` – canvas textures (visor, eyes, ear lights)

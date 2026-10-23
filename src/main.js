@@ -8,10 +8,11 @@ import { createToys } from './toys.js';
 
 const params = new URLSearchParams(location.search);
 const still = params.has('still');
+const CANVAS_WIDTH = 1200; // the scene is laid out for this width; narrower screens use their full width
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(Math.min(CANVAS_WIDTH, window.innerWidth), window.innerHeight);
 renderer.setClearColor(0xffffff, 1);
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -23,7 +24,7 @@ const scene = new THREE.Scene();
 scene.environment = createStudioEnvironment(renderer);
 scene.environmentIntensity = 0.28;
 
-const camera = new THREE.PerspectiveCamera(28, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
 camera.position.set(0, 2.75, 9.2);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -45,14 +46,14 @@ const cameraStart = camera.quaternion.clone().invert();
 const key = new THREE.DirectionalLight('#fffaf8', 2.8);
 key.position.set(-5.5, 6, 4);
 key.castShadow = true;
-key.shadow.mapSize.set(3072, 3072);
-key.shadow.camera.left = -3.4;
-key.shadow.camera.right = 3.4;
-key.shadow.camera.top = 3.4;
-key.shadow.camera.bottom = -3.4;
+key.shadow.mapSize.set(4096, 4096);
+key.shadow.camera.left = -4.6;
+key.shadow.camera.right = 4.6;
+key.shadow.camera.top = 4.6;
+key.shadow.camera.bottom = -4.6;
 key.shadow.camera.near = 1;
 key.shadow.camera.far = 20;
-key.shadow.radius = 2;
+key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.03;
 rig.add(key, key.target);
@@ -95,6 +96,14 @@ const contactShadow = new THREE.Mesh(
 contactShadow.position.set(robot.position.x, 0.002, 0.05);
 scene.add(contactShadow);
 
+// invisible floor that only shows the shadows cast on it
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2),
+  new THREE.ShadowMaterial({ color: '#6f5fa8', opacity: 0.2 }),
+);
+floor.receiveShadow = true;
+scene.add(floor);
+
 function updateContactShadow() {
   // a hop lifts the robot off the floor: the shadow fades and shrinks a little
   const air = animator.air;
@@ -103,11 +112,11 @@ function updateContactShadow() {
 }
 
 function resize() {
-  const w = window.innerWidth;
+  const w = Math.min(CANVAS_WIDTH, window.innerWidth);
   const h = window.innerHeight;
   camera.aspect = w / h;
-  // keep the robot and its toys in frame on narrow screens
-  const fit = Math.max(1, 1.05 / camera.aspect);
+  // keep the robot and its toys in frame on narrow screens (phones can pinch out for the outer toys)
+  const fit = THREE.MathUtils.clamp(1.55 / camera.aspect, 1, 2.2);
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(14)) * fit));
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);

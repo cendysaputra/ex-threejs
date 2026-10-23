@@ -4,15 +4,15 @@ import { plastic } from './robot.js';
 import { makeBallTexture, makeBlobTexture } from './textures.js';
 
 // ---------------------------------------------------------------------------
-// Pastel toys scattered around the robot. Floor toys can be picked up and
-// dragged (or flung), and hop with a flip when tapped; the floating star spins
-// and the bubbles pop and grow back. The robot glances at whatever is played with.
+// Pastel toys scattered on the floor around the robot. They can be picked up
+// and dragged (or flung), and hop with a flip when tapped; the round ones roll.
+// The robot glances at whatever is played with.
 // ---------------------------------------------------------------------------
 
 const GRAVITY = 9.8;
 const ROBOT_RADIUS = 1.15; // toys stay clear of the robot's body and feet
-const PLAY_RADIUS = 3.0; // and within this distance of it
-const FRONT_LIMIT = 1.9; // and not so close to the camera that they leave the frame
+// and inside this patch of floor (relative to the robot), which keeps them in frame
+const PLAY = { side: 3.4, back: 2.2, front: 1.9 };
 const HOLD_HEIGHT = 0.45; // dragged toys are lifted off the floor this much
 const HOP_SPEED = 3.3;
 
@@ -51,13 +51,14 @@ function coneGeometry(radius, height) {
 }
 
 const FLOOR_TOYS = [
+  // left of the robot
   {
     name: 'pink block',
     make: () => new RoundedBoxGeometry(0.46, 0.46, 0.46, 5, 0.09),
     color: '#f5b6df',
     height: 0.46,
     radius: 0.3,
-    x: -1.75,
+    x: -2.05,
     z: 0.55,
     yaw: 0.4,
   },
@@ -67,18 +68,52 @@ const FLOOR_TOYS = [
     color: '#c4b3f3',
     height: 0.34,
     radius: 0.23,
-    x: -2.1,
-    z: -0.45,
+    x: -2.65,
+    z: -0.55,
     yaw: -0.3,
   },
+  {
+    name: 'cone',
+    make: () => coneGeometry(0.19, 0.38),
+    color: '#ffcdb8',
+    height: 0.38,
+    radius: 0.2,
+    x: -1.45,
+    z: 1.35,
+    yaw: 0,
+  },
+  {
+    name: 'star',
+    make: () => starGeometry(0.25, 0.115, 0.06).rotateX(-Math.PI / 2),
+    color: '#ffd8a8',
+    extra: { emissive: new THREE.Color('#ffcf94'), emissiveIntensity: 0.35, clearcoat: 0.8 },
+    height: 0.14,
+    radius: 0.27,
+    x: -3.05,
+    z: 0.65,
+    yaw: 0.25,
+  },
+  {
+    name: 'pink marble',
+    make: () => new THREE.SphereGeometry(0.12, 32, 24),
+    color: '#ffc6e6',
+    extra: { roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 },
+    height: 0.24,
+    radius: 0.12,
+    x: -2.35,
+    z: 1.5,
+    yaw: 0,
+    rolls: true,
+  },
+  // right of the robot
   {
     name: 'ball',
     make: () => new THREE.SphereGeometry(0.26, 48, 32),
     map: makeBallTexture,
     height: 0.52,
     radius: 0.26,
-    x: 1.65,
-    z: 0.75,
+    x: 1.85,
+    z: 0.8,
     yaw: 0.3,
     rolls: true,
   },
@@ -88,18 +123,8 @@ const FLOOR_TOYS = [
     color: '#a9c8f5',
     height: 0.18,
     radius: 0.31,
-    x: 2.2,
-    z: -0.05,
-    yaw: 0,
-  },
-  {
-    name: 'cone',
-    make: () => coneGeometry(0.19, 0.38),
-    color: '#ffcdb8',
-    height: 0.38,
-    radius: 0.2,
-    x: -1.3,
-    z: 1.3,
+    x: 2.65,
+    z: -0.25,
     yaw: 0,
   },
   {
@@ -108,17 +133,34 @@ const FLOOR_TOYS = [
     color: '#bdebdc',
     height: 0.22,
     radius: 0.24,
-    x: 1.1,
-    z: 1.45,
+    x: 1.3,
+    z: 1.5,
     yaw: 0.6,
   },
-];
-
-const BUBBLES = [
-  { r: 0.1, x: 2.25, y: 1.85, z: 0.1, tint: '#ffd9ef' },
-  { r: 0.07, x: 1.7, y: 2.55, z: -0.6, tint: '#d3e8ff' },
-  { r: 0.09, x: -2.45, y: 1.4, z: 0.4, tint: '#e2d6ff' },
-  { r: 0.065, x: -1.45, y: 2.75, z: -0.5, tint: '#d4f5ea' },
+  {
+    name: 'blue marble',
+    make: () => new THREE.SphereGeometry(0.1, 32, 24),
+    color: '#c9defc',
+    extra: { roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 },
+    height: 0.2,
+    radius: 0.1,
+    x: 3.05,
+    z: 0.9,
+    yaw: 0,
+    rolls: true,
+  },
+  {
+    name: 'lilac marble',
+    make: () => new THREE.SphereGeometry(0.14, 32, 24),
+    color: '#dccdfb',
+    extra: { roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 },
+    height: 0.28,
+    radius: 0.14,
+    x: 3.0,
+    z: -0.95,
+    yaw: 0,
+    rolls: true,
+  },
 ];
 
 export function createToys({ scene, camera, canvas, controls, robot, animator, onRobotTap }) {
@@ -134,7 +176,7 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
   for (const spec of FLOOR_TOYS) {
     const material = spec.map
       ? plastic('#ffffff', { map: spec.map(), clearcoat: 0.6, clearcoatRoughness: 0.15 })
-      : plastic(spec.color, { clearcoat: 0.5, clearcoatRoughness: 0.2 });
+      : plastic(spec.color, { clearcoat: 0.5, clearcoatRoughness: 0.2, ...spec.extra });
     const mesh = new THREE.Mesh(spec.make(), material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -157,7 +199,6 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     group.add(shadow);
 
     const toy = {
-      kind: 'floor',
       spec,
       root,
       squash,
@@ -175,60 +216,6 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
       hover: 0,
     };
     mesh.userData.toy = toy;
-    pickables.push(mesh);
-    toys.push(toy);
-  }
-
-  // --- floating star and bubbles ------------------------------------------
-  const star = new THREE.Mesh(
-    starGeometry(0.22, 0.1, 0.06),
-    plastic('#ffe3a3', { emissive: new THREE.Color('#ffd98a'), emissiveIntensity: 0.25, clearcoat: 0.8 }),
-  );
-  star.castShadow = true;
-  const starToy = {
-    kind: 'star',
-    mesh: star,
-    base: new THREE.Vector3(-2.0, 2.05, -0.2),
-    spinVel: 0,
-    angle: 0,
-    pop: 0,
-    popV: 0,
-    hover: 0,
-  };
-  star.position.copy(starToy.base);
-  star.userData.toy = starToy;
-  group.add(star);
-  pickables.push(star);
-  toys.push(starToy);
-
-  const bubbleMat = new THREE.MeshPhysicalMaterial({
-    roughness: 0.05,
-    metalness: 0,
-    clearcoat: 1,
-    iridescence: 1,
-    iridescenceIOR: 1.3,
-    iridescenceThicknessRange: [200, 600],
-    transparent: true,
-    opacity: 0.6,
-  });
-  for (const b of BUBBLES) {
-    const mat = bubbleMat.clone();
-    mat.color.set(b.tint);
-    mat.emissive.set(b.tint);
-    mat.emissiveIntensity = 0.25;
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(b.r, 32, 24), mat);
-    const toy = {
-      kind: 'bubble',
-      mesh,
-      base: new THREE.Vector3(b.x, b.y, b.z),
-      phase: Math.random() * 6,
-      state: 'idle',
-      timer: 0,
-      hover: 0,
-    };
-    mesh.position.copy(toy.base);
-    mesh.userData.toy = toy;
-    group.add(mesh);
     pickables.push(mesh);
     toys.push(toy);
   }
@@ -252,11 +239,7 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     raycaster.setFromCamera(ndc, camera);
     const hits = raycaster.intersectObjects([...pickables, ...robotMeshes], false);
     for (const h of hits) {
-      if (h.object.userData.toy) {
-        const toy = h.object.userData.toy;
-        if (toy.kind === 'bubble' && toy.state !== 'idle') continue;
-        return toy;
-      }
+      if (h.object.userData.toy) return h.object.userData.toy;
       if (h.object.visible) return 'robot';
     }
     return null;
@@ -271,31 +254,21 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
   }
 
   function worldPos(toy) {
-    return toy.kind === 'floor'
-      ? new THREE.Vector3(toy.pos.x, toy.y + toy.spec.height / 2, toy.pos.y)
-      : toy.mesh.position.clone();
+    return new THREE.Vector3(toy.pos.x, toy.y + toy.spec.height / 2, toy.pos.y);
   }
 
   function tapToy(toy) {
     animator.lookAt(worldPos(toy), now);
-    if (toy.kind === 'floor') {
-      if (toy.y > 0.02) return;
-      toy.vy = HOP_SPEED * (0.9 + Math.random() * 0.2);
-      const a = Math.random() * Math.PI * 2;
-      toy.flip = {
-        start: now,
-        duration: (2 * toy.vy) / GRAVITY,
-        axis: new THREE.Vector3(Math.cos(a), 0, Math.sin(a)),
-        base: toy.orient.clone(),
-      };
-      toy.sqv = 2.5; // a little stretch on take-off
-    } else if (toy.kind === 'star') {
-      toy.spinVel += 14;
-      toy.popV += 4;
-    } else if (toy.kind === 'bubble' && toy.state === 'idle') {
-      toy.state = 'popping';
-      toy.timer = 0;
-    }
+    if (toy.y > 0.02) return;
+    toy.vy = HOP_SPEED * (0.9 + Math.random() * 0.2);
+    const a = Math.random() * Math.PI * 2;
+    toy.flip = {
+      start: now,
+      duration: (2 * toy.vy) / GRAVITY,
+      axis: new THREE.Vector3(Math.cos(a), 0, Math.sin(a)),
+      base: toy.orient.clone(),
+    };
+    toy.sqv = 2.5; // a little stretch on take-off
   }
 
   canvas.addEventListener(
@@ -303,7 +276,7 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     (e) => {
       const target = pick(e);
       press = { x: e.clientX, y: e.clientY, target };
-      if (target && target !== 'robot' && target.kind === 'floor') {
+      if (target && target !== 'robot') {
         const center = target.y + target.spec.height / 2;
         const p = floorPoint(e, center);
         drag = {
@@ -330,11 +303,7 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     }
     if (e.buttons) return;
     hovered = pick(e);
-    canvas.style.cursor = hovered
-      ? hovered !== 'robot' && hovered.kind === 'floor'
-        ? 'grab'
-        : 'pointer'
-      : '';
+    canvas.style.cursor = hovered ? (hovered === 'robot' ? 'pointer' : 'grab') : '';
   });
 
   function endPress(e) {
@@ -361,33 +330,40 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
   function keepInPlayArea(toy) {
     const cx = robot.position.x;
     const cz = robot.position.z;
+    // clear of the robot: push out of its circle and bounce off it
     const dx = toy.pos.x - cx;
     const dz = toy.pos.y - cz;
     const d = Math.hypot(dx, dz) || 1e-6;
     const min = ROBOT_RADIUS + toy.spec.radius;
-    const max = PLAY_RADIUS;
-    if (d < min || d > max) {
-      const k = THREE.MathUtils.clamp(d, min, max) / d;
-      toy.pos.set(cx + dx * k, cz + dz * k);
-      // bounce off the robot / the edge
+    if (d < min) {
       const nx = dx / d;
       const nz = dz / d;
+      toy.pos.set(cx + nx * min, cz + nz * min);
       const vn = toy.vel.x * nx + toy.vel.y * nz;
-      if ((d < min && vn < 0) || (d > max && vn > 0))
-        toy.vel.set(toy.vel.x - 1.6 * vn * nx, toy.vel.y - 1.6 * vn * nz);
+      if (vn < 0) toy.vel.set(toy.vel.x - 1.6 * vn * nx, toy.vel.y - 1.6 * vn * nz);
     }
-    if (toy.pos.y > cz + FRONT_LIMIT) {
-      toy.pos.y = cz + FRONT_LIMIT;
-      if (toy.vel.y > 0) toy.vel.y *= -0.6;
+    // inside the play patch: bounce off its edges
+    const r = toy.spec.radius;
+    const bounds = [
+      ['x', cx - PLAY.side + r, cx + PLAY.side - r],
+      ['y', cz - PLAY.back + r, cz + PLAY.front - r],
+    ];
+    for (const [axis, lo, hi] of bounds) {
+      if (toy.pos[axis] < lo) {
+        toy.pos[axis] = lo;
+        if (toy.vel[axis] < 0) toy.vel[axis] *= -0.6;
+      } else if (toy.pos[axis] > hi) {
+        toy.pos[axis] = hi;
+        if (toy.vel[axis] > 0) toy.vel[axis] *= -0.6;
+      }
     }
   }
 
   function separate() {
-    const floor = toys.filter((t) => t.kind === 'floor');
-    for (let i = 0; i < floor.length; i++) {
-      for (let j = i + 1; j < floor.length; j++) {
-        const a = floor[i];
-        const b = floor[j];
+    for (let i = 0; i < toys.length; i++) {
+      for (let j = i + 1; j < toys.length; j++) {
+        const a = toys[i];
+        const b = toys[j];
         // stacked heights don't overlap: one is well above the other
         if (Math.abs(a.y - b.y) > Math.max(a.spec.height, b.spec.height)) continue;
         const dx = b.pos.x - a.pos.x;
@@ -416,7 +392,7 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     }
   }
 
-  function updateFloorToy(toy, dt) {
+  function updateToy(toy, dt) {
     const held = drag && drag.toy === toy && drag.moved;
     const prev = toy.pos.clone();
 
@@ -482,66 +458,13 @@ export function createToys({ scene, camera, canvas, controls, robot, animator, o
     toy.shadow.scale.setScalar(toy.spec.radius * 2.8 * (1 - lift * 0.3));
   }
 
-  function updateStar(toy, t, dt) {
-    toy.spinVel *= Math.exp(-dt * 1.5);
-    toy.angle += (0.5 + toy.spinVel) * dt;
-    toy.popV += (-120 * toy.pop - 9 * toy.popV) * dt;
-    toy.pop += toy.popV * dt;
-    const hover = hovered === toy ? 1 : 0;
-    toy.hover += (hover - toy.hover) * (1 - Math.exp(-dt * 12));
-    toy.mesh.position.set(toy.base.x, toy.base.y + Math.sin(t * 1.3) * 0.08, toy.base.z);
-    toy.mesh.rotation.set(0.15, toy.angle, Math.sin(t * 0.9) * 0.15);
-    toy.mesh.scale.setScalar(1 + toy.pop * 0.15 + toy.hover * 0.12);
-  }
-
-  function updateBubble(toy, t, dt) {
-    const { mesh } = toy;
-    mesh.position.set(
-      toy.base.x + Math.sin(t * 0.7 + toy.phase) * 0.06,
-      toy.base.y + Math.sin(t * 1.1 + toy.phase) * 0.1,
-      toy.base.z,
-    );
-    const hover = hovered === toy ? 1 : 0;
-    toy.hover += (hover - toy.hover) * (1 - Math.exp(-dt * 12));
-    toy.timer += dt;
-    if (toy.state === 'idle') {
-      const wobble = Math.sin(t * 6 + toy.phase) * 0.04 * toy.hover;
-      mesh.scale.set(1 + toy.hover * 0.15 + wobble, 1 + toy.hover * 0.15 - wobble, 1 + toy.hover * 0.15);
-      mesh.material.opacity = 0.6;
-      mesh.visible = true;
-    } else if (toy.state === 'popping') {
-      const k = Math.min(1, toy.timer / 0.22);
-      mesh.scale.setScalar(1 + k * 0.7);
-      mesh.material.opacity = 0.6 * (1 - k);
-      if (k >= 1) {
-        toy.state = 'gone';
-        toy.timer = 0;
-        mesh.visible = false;
-      }
-    } else if (toy.state === 'gone') {
-      if (toy.timer > 2.2) {
-        toy.state = 'growing';
-        toy.timer = 0;
-        mesh.visible = true;
-      }
-    } else if (toy.state === 'growing') {
-      const k = Math.min(1, toy.timer / 0.6);
-      const e = 1 - Math.pow(1 - k, 3);
-      mesh.scale.setScalar(Math.max(0.001, e));
-      mesh.material.opacity = 0.6 * e;
-      if (k >= 1) toy.state = 'idle';
-    }
-  }
-
   return {
     update(t, dt) {
       now = t;
       dt = Math.min(dt, 1 / 20);
       separate();
       for (const toy of toys) {
-        if (toy.kind === 'floor') updateFloorToy(toy, dt);
-        else if (toy.kind === 'star') updateStar(toy, t, dt);
-        else updateBubble(toy, t, dt);
+        updateToy(toy, dt);
       }
     },
   };
