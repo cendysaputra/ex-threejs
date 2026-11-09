@@ -74,6 +74,7 @@ motionPreference.addEventListener('change', (event) => {
 });
 pauseButton.addEventListener('click', () => {
   paused = !paused;
+  if (paused) hat.eye.setOpen(1);
   showPauseState();
 });
 document.querySelector('#blink').addEventListener('click', () => {
@@ -126,13 +127,13 @@ function resize() {
   camera.aspect = w / h;
   const mobile = w < 701;
   const distance = mobile
-    ? Math.max(13, 6.9 / (w / h) / (2 * Math.tan(THREE.MathUtils.degToRad(43 / 2))))
+    ? Math.max(13, 6.6 / (w / h) / (2 * Math.tan(THREE.MathUtils.degToRad(43 / 2))))
     : 11.8;
   controls.maxDistance = Math.max(20, distance * 1.4);
   camera.position.set(0, 3.25, distance);
   homePosition = camera.position.clone();
   camera.fov = mobile ? 43 : 32;
-  camera.setViewOffset(w, h, mobile ? 0 : -w * 0.13, mobile ? -h * 0.13 : 0, w, h);
+  camera.setViewOffset(w, h, mobile ? 0 : -w * 0.015, mobile ? -h * 0.055 : 0, w, h);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   effects.setPixelRatio(renderer.getPixelRatio());

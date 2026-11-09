@@ -194,3 +194,37 @@ h1 em {
     line-height: 1.6;
   }
 }
+
+/* The character is the subject; keep the caption outside its silhouette. */
+.caption {
+  top: auto;
+  bottom: 132px;
+  left: 36px;
+}
+.caption h1 {
+  font-size: 32px;
+  margin: 12px 0;
+  letter-spacing: -0.045em;
+}
+.caption .description {
+  display: none;
+}
+@media (max-width: 700px) {
+  .caption {
+    top: 104px;
+    bottom: auto;
+    left: 24px;
+  }
+  .caption h1 {
+    font-size: 38px;
+  }
+}
+@media (max-height: 500px) {
+  .caption {
+    top: auto;
+    bottom: 130px;
+  }
+  .caption h1 {
+    font-size: 26px;
+  }
+}

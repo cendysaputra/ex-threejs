@@ -28,8 +28,9 @@ The **Witch Hat** project menu opens a separate page at `/witch-hat/`. The robot
 scene and both robot backups keep their own entry points.
 
 The hat is modeled in Three.js, with a waving brim, a bent crown, an integrated
-purple eye, gold embroidery, a crescent and a swinging crystal. Its cloth and
-eye use physical materials and the robot's shared studio environment. No model
+purple eye, gold embroidery, a crescent and a swinging crystal. Its cloth and gold use custom anime paint ramps, thin ink contours and sculpted
+creases. The iris uses painted highlights; the crystal uses the shared studio
+environment. No model
 downloads or external image assets are needed.
 
 - Drag to orbit; scroll or pinch to zoom. **Reset** restores the initial camera.
@@ -38,9 +39,12 @@ downloads or external image assets are needed.
 - **Jeda animasi** pauses motion. Reduced-motion preferences start it paused.
   `/witch-hat/?still` opens a static pose for inspection.
 - `src/witch-hat/model.js` builds geometry, ornaments and morphing cloth lids.
-- `iris.js` paints the eye and attaches it to a reflective physical material.
+- `iris.js` paints the eye and projects it beneath the moving cloth eyelids.
 - `animation.js` drives blinking, gaze, floating, crown motion and the pendant.
 - `effects.js` supplies a soft contact shadow and sparse drifting particles.
 - `main.js` manages the renderer, studio lights, camera and input.
 
 `npm run build` includes all four pages through the Vite multi-page configuration.
+
+The crown is lofted between asymmetric silhouette curves rather than swept as a
+circular tube. `anime-material.js` controls its shadow, midtone and light colors.

@@ -285,8 +285,8 @@ export function createWitchHat() {
   );
   const creases = [
     [0.16, 0.39, 1.1, 1.7, 0.19, 0.075],
-    [0.3, 0.49, 2.25, 1.8, 0.20, 0.085],
-    [0.43, 0.67, 1.0, 1.65, 0.20, 0.07],
+    [0.3, 0.49, 2.25, 1.8, 0.2, 0.085],
+    [0.43, 0.67, 1.0, 1.65, 0.2, 0.07],
     [0.62, 0.88, 1.4, 2.2, 0.18, 0.06],
   ];
   function crownPoint(u, a) {
@@ -367,7 +367,7 @@ export function createWitchHat() {
   const eye = createEye(gold, cloth, surfaceZ);
   root.add(eye.root);
   const largeStar = star(0.24, gold);
-  largeStar.position.set(-0.40, 2.42, 0.72);
+  largeStar.position.set(-0.4, 2.42, 0.72);
   largeStar.rotation.x = -0.35;
   largeStar.rotation.z = -0.15;
   root.add(largeStar);
