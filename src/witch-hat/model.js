@@ -1,15 +1,8 @@
 import * as THREE from 'three';
+import { createIrisMaterial } from './iris.js';
 
 const TAU = Math.PI * 2;
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
-
-function makeGradient() {
-  const data = new Uint8Array([65, 110, 175, 220, 255]);
-  const texture = new THREE.DataTexture(data, 5, 1, THREE.RedFormat);
-  texture.minFilter = texture.magFilter = THREE.NearestFilter;
-  texture.needsUpdate = true;
-  return texture;
-}
 
 function surfaceGeometry(rows, columns, sample, colorAt) {
   const positions = [], colors = [], uv = [], indices = [];
@@ -39,15 +32,6 @@ function tube(points, radius, material, closed = false) {
   return new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(32, points.length * 4), radius, 6, closed), material);
 }
 
-function outline(mesh, width = 0.009) {
-  const mat = new THREE.MeshBasicMaterial({ color: '#24112f', side: THREE.BackSide });
-  mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `vec3 transformed = position + normal * ${width.toFixed(4)};`);
-  };
-  const edge = new THREE.Mesh(mesh.geometry, mat);
-  mesh.add(edge);
-}
-
 function outward(geometry) {
   const index = geometry.index.array;
   for (let i = 0; i < index.length; i += 3) [index[i], index[i + 1]] = [index[i + 1], index[i]];
@@ -62,45 +46,14 @@ function star(size, material) {
   shape.quadraticCurveTo(size * .15, -size * .15, 0, -size);
   shape.quadraticCurveTo(-size * .15, -size * .15, -size * .55, 0);
   shape.quadraticCurveTo(-size * .2, size * .16, 0, size);
-  return new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: .022, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 1, steps: 1 }), material);
+  return new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: .026, bevelEnabled: true, bevelThickness: .014, bevelSize: .012, bevelSegments: 3, steps: 1 }), material);
 }
 
 function createEye(gold, cloth, surfaceZ) {
   const root = new THREE.Group();
   root.position.set(-.12, 1.68, .9);
-  const eyeMaterial = new THREE.ShaderMaterial({
-    uniforms: { look: { value: new THREE.Vector2() } },
-    vertexShader: `varying vec2 eyePosition;
-      void main() {
-        eyePosition = position.xy;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: `varying vec2 eyePosition;
-      uniform vec2 look;
-      void main() {
-        vec2 p = eyePosition - look;
-        float r = length(p / vec2(.235, .25));
-        float angle = atan(p.y, p.x);
-        vec3 color = mix(vec3(.065,.018,.09), vec3(.19,.055,.25), .5 + eyePosition.y);
-        if(r < 1.) {
-          float fibers = sin(angle * 43. + r * 13.) * sin(angle * 27. - r * 21.);
-          color = mix(vec3(.10,.014,.19), vec3(.42,.075,.60), smoothstep(.1,.85,r));
-          color += fibers * .015;
-          color *= 1. - .65 * smoothstep(.86, 1., r);
-          color += vec3(.12,.025,.14) * exp(-pow((r-.45)*7.,2.));
-        }
-        float pupil = abs(p.x) / .045 + pow(abs(p.y) / .235, 1.7);
-        color = mix(color, vec3(.055,.018,.09), 1. - smoothstep(.92,1.04,pupil));
-        float glint = 1. - smoothstep(.026,.04,length(p-vec2(-.105,.13)));
-        color = mix(color, vec3(1.,.86,.99), glint*.95);
-        color += vec3(.21,.06,.25) * (1.-smoothstep(0.,.12,length(p-vec2(.10,-.16))));
-        color *= 1. - .38 * smoothstep(.10,.29,eyePosition.y);
-        gl_FragColor = vec4(color,1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-    side: THREE.DoubleSide,
-  });
+  const iris = createIrisMaterial();
+  const eyeMaterial = iris.material;
   const width = .75, halfHeight = .235;
   function onCloth(x, y, lift = .04) {
     return v(x, y, surfaceZ(x-.12, y+1.68) - .9 + lift);
@@ -168,24 +121,42 @@ function createEye(gold, cloth, surfaceZ) {
       mesh.geometry = geometry;
     }
   }
-  return { root, setOpen, look: eyeMaterial.uniforms.look.value };
+  // Build the two aperture poses once. GPU morphing keeps the iris round while
+  // the cloth lids cover it, with no geometry allocations during a blink.
+  const meshes=[lens,...lids,upperGold,lowerGold];
+  const opened=meshes.map(mesh=>mesh.geometry.attributes.position.array.slice());
+  setOpen(.015);
+  const closed=meshes.map(mesh=>mesh.geometry.attributes.position.array.slice());
+  meshes.forEach((mesh,i)=>{
+    mesh.geometry.attributes.position.array.set(opened[i]);
+    mesh.geometry.attributes.position.needsUpdate=true;
+    mesh.geometry.morphAttributes.position=[new THREE.Float32BufferAttribute(closed[i],3)];
+    mesh.updateMorphTargets();
+    mesh.morphTargetInfluences[0]=0;
+    mesh.geometry.computeVertexNormals();
+  });
+  return {
+    root,
+    setOpen(open) { for(const mesh of meshes) mesh.morphTargetInfluences[0]=1-THREE.MathUtils.clamp(open,0,1); },
+    look: iris.look,
+    get openness() { return 1-lens.morphTargetInfluences[0]; },
+  };
 }
 
 export function createWitchHat() {
   const root = new THREE.Group();
-  const gradientMap = makeGradient();
-  const cloth = new THREE.MeshToonMaterial({ color: '#432451', gradientMap, side: THREE.DoubleSide });
-  const coloredCloth = new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap, vertexColors: true, side: THREE.DoubleSide });
+  const cloth = new THREE.MeshPhysicalMaterial({ color: '#583070', roughness: .74, sheen: .8, sheenColor: '#c39adf', sheenRoughness: .55, side: THREE.DoubleSide });
+  const coloredCloth = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: .72, sheen: .75, sheenColor: '#ba8dd8', sheenRoughness: .65, vertexColors: true, side: THREE.DoubleSide });
   coloredCloth.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb *= 0.56;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb *= 0.74;');
   };
-  const gold = new THREE.MeshStandardMaterial({ color: '#edb278', roughness: .34, metalness: .48 });
-  const brightGold = new THREE.MeshToonMaterial({ color: '#ffd29e', gradientMap });
-  const base = new THREE.Color('#432451');
+  const gold = new THREE.MeshStandardMaterial({ color: '#f3c596', roughness: .27, metalness: .76 });
+  const brightGold = new THREE.MeshStandardMaterial({ color: '#ffe0af', roughness: .24, metalness: .65 });
+  const base = new THREE.Color('#5c3476');
   const clothColor = (u, a) => {
     const theta = a*TAU;
-    const fold = Math.sin(theta*7+u*11) * .5 + Math.sin(theta*12-u*15)*.25;
-    const shade = .87 + fold * .13 + .10 * Math.sin(theta-1);
+    const fold = Math.sin(theta*5+u*7) * .5 + Math.sin(theta*8-u*8)*.15;
+    const shade = .96 + fold * .035;
     return base.clone().multiplyScalar(shade);
   };
   function brimPoint(t, a) {
@@ -194,12 +165,14 @@ export function createWitchHat() {
     const wave = (.43*Math.cos(2*a+1.3)+.22*Math.sin(3*a-1.2)+.10*Math.cos(a+.5))*Math.pow(t,1.6);
     const angle=Math.atan2(Math.sin(a-2.3),Math.cos(a-2.3));
     const curl=.68*Math.exp(-((angle/.58)**2))*t**7;
-    const y=.92-.36*t + wave + .08*Math.sin(t*5+a*4)*t + curl;
+    const drape=.16*Math.sin(t*4+a*3)*Math.sin(t*Math.PI)*t;
+    const y=.92-.36*t + wave + drape + curl;
     return v(r*Math.cos(a)*ellipse,y,r*Math.sin(a)*.78*ellipse);
   }
-  const brim = new THREE.Mesh(surfaceGeometry(26, 144, (t,a)=>brimPoint(t,a*TAU), clothColor),coloredCloth);
+  const brim = new THREE.Mesh(surfaceGeometry(44, 192, (t,a)=>brimPoint(t,a*TAU), clothColor),coloredCloth);
+  brim.receiveShadow=true;
   root.add(brim);
-  outline(brim,.014);
+
   const edgePoints=Array.from({length:145},(_,i)=>brimPoint(1,i/144*TAU).add(v(0,.008,0)));
   root.add(tube(edgePoints,.025,gold,true));
   const innerStitch=Array.from({length:145},(_,i)=>brimPoint(.977,i/144*TAU).add(v(0,.012,0)));
@@ -220,27 +193,28 @@ export function createWitchHat() {
     v(.47,3.75,-.02),v(.92,3.60,-.01),v(1.31,3.10,0),
     v(1.85,2.85,.02),v(2.06,2.38,.06),v(1.93,2.03,.10),
   ], false, 'catmullrom', .35);
-  const radii=[1.23,1.04,.81,.61,.46,.40,.32,.24,.14,.004];
+  const radii=[1.23,1.05,.82,.61,.25,.25,.23,.16,.085,.002];
+  const radiusCurve = new THREE.SplineCurve(radii.map((r,i)=>new THREE.Vector2(i/9,r)));
   function crownPoint(u,a) {
     const p=center.getPoint(u), tangent=center.getTangent(u);
     const xAxis=v(tangent.y,-tangent.x,0).normalize();
     const zAxis=new THREE.Vector3().crossVectors(xAxis,tangent).normalize();
-    const s=u*(radii.length-1), i=Math.min(radii.length-2,Math.floor(s)), f=s-i;
-    const smooth=f*f*(3-2*f);
-    let r=THREE.MathUtils.lerp(radii[i],radii[i+1],smooth);
-    const fold=.045*Math.sin(a*7+u*11)+.022*Math.sin(a*12-u*15);
+    let r=Math.max(.002,radiusCurve.getPoint(u).y);
+    const fold=.026*Math.sin(a*5+u*7)+.009*Math.sin(a*8-u*8);
     r*=1+fold;
     return p.addScaledVector(xAxis,Math.cos(a)*r).addScaledVector(zAxis,Math.sin(a)*r*.88);
   }
-  const crown=new THREE.Mesh(outward(surfaceGeometry(110,96,(u,a)=>crownPoint(u,a*TAU),clothColor)),coloredCloth);
+  const crown=new THREE.Mesh(outward(surfaceGeometry(160,128,(u,a)=>crownPoint(u,a*TAU),clothColor)),coloredCloth);
+  crown.receiveShadow=true;
   root.add(crown);
-  outline(crown,.012);
+
   // A separate draped band adds overlapping folds at the base of the crown.
   const band=new THREE.Mesh(outward(surfaceGeometry(12,96,(t,a)=>{
     const angle=a*TAU;
     const u=.015+t*.105+.018*Math.sin(angle*2+.4);
     const p=crownPoint(Math.max(0,u),angle);
-    p.add(v(Math.cos(angle)*.035,0,Math.sin(angle)*.035));
+    const raised=.008+.045*Math.sin(t*Math.PI);
+    p.add(v(Math.cos(angle)*raised,0,Math.sin(angle)*raised));
     p.y+=.025*Math.sin(t*8+angle*3);
     return p;
   },(t,a)=>clothColor(t*.1,a).multiplyScalar(.88))),coloredCloth);
@@ -293,7 +267,7 @@ export function createWitchHat() {
   loop.scale.x=.67;
   loop.position.y=-.045;
   pendant.add(loop);
-  const crystalMaterial=new THREE.MeshStandardMaterial({color:'#b44cde',roughness:.2,metalness:.18,flatShading:true,emissive:'#651b90',emissiveIntensity:.3});
+  const crystalMaterial=new THREE.MeshStandardMaterial({color:'#b44cde',roughness:.13,metalness:.28,flatShading:true,emissive:'#651b90',emissiveIntensity:.3});
   const crystal=new THREE.Mesh(new THREE.OctahedronGeometry(.155,0),crystalMaterial);
   crystal.scale.set(.72,1.65,.65);
   crystal.position.set(0,-.30,0);
@@ -313,7 +287,7 @@ export function createWitchHat() {
     charm.add(link);
   }
   root.add(charm);
-  root.traverse(object=>{ if(object.isMesh) object.castShadow=true; });
+  root.traverse(object=>{ if(object.isMesh) { object.castShadow=true; object.receiveShadow=true; } });
   root.rotation.y=-.10;
   return { root, eye, pendant, crystal, crown, brim };
 }

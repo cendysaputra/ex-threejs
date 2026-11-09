@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createWitchHat } from './model.js';
+import { createStudioEnvironment } from '../environment.js';
 
 const mount = document.querySelector('#scene');
 const status = document.querySelector('#scene-status');
@@ -13,11 +14,15 @@ try {
 }
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.setClearColor('#f7f3fa');
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 mount.append(renderer.domElement);
 
 const scene = new THREE.Scene();
+scene.environment = createStudioEnvironment(renderer);
+scene.environmentIntensity = .38;
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1.9, 0);
@@ -27,15 +32,21 @@ controls.minDistance = 6;
 controls.maxDistance = 20;
 controls.minPolarAngle = 0.5;
 controls.maxPolarAngle = 1.8;
-scene.add(new THREE.HemisphereLight('#eadcff', '#4b2c68', 1.4));
-const key = new THREE.DirectionalLight('#ffe9d0', 2.2);
-key.position.set(-3, 7, 6);
+scene.add(new THREE.HemisphereLight('#eee8ff', '#685079', .4));
+const key = new THREE.DirectionalLight('#fff7f0', 3.2);
+key.position.set(-4.5, 7, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+Object.assign(key.shadow.camera,{left:-4,right:4,top:5,bottom:-3,near:1,far:20});
+key.shadow.bias=-.0003;
+key.shadow.normalBias=.025;
+key.shadow.radius=5;
 scene.add(key);
-const rim = new THREE.DirectionalLight('#d48dff', 1.8);
+const rim = new THREE.DirectionalLight('#dbc1ff', 2.0);
 rim.position.set(4, 4, -3);
 scene.add(rim);
-const fill = new THREE.DirectionalLight('#a6b3ff', 0.55);
-fill.position.set(-5, 2, -1);
+const fill = new THREE.DirectionalLight('#d7dbff', .7);
+fill.position.set(4, 2, 6);
 scene.add(fill);
 
 const hat = createWitchHat();
@@ -58,6 +69,6 @@ addEventListener('resize', resize);
 resize();
 renderer.setAnimationLoop(() => {
   controls.update();
-  renderer.render(scene, camera);
+  renderer.render(scene,camera);
 });
-status.hidden = true;
+status.hidden=true;
