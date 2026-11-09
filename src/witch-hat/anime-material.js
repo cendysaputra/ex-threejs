@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // grazing highlight. No environment reflection or plastic specular on fabric.
 export function animeMaterial(kind = 'cloth') {
   const palettes = {
-    cloth: ['#241731', '#42204f', '#69377f', '#b65dad'],
+    cloth: ['#231631', '#3d2351', '#66317c', '#b861b7'],
     gold: ['#955877', '#c58a81', '#f2bf8b', '#ffe8b8'],
   };
   const palette = palettes[kind];
@@ -43,14 +43,14 @@ export function animeMaterial(kind = 'cloth') {
         vec3 n=normalize(nWorld)*(gl_FrontFacing?1.:-1.);
         float lighting=dot(n,normalize(vec3(-.65,.85,.7)));
         vec3 paint=mix(ink,shade,smoothstep(-.35,-.25,lighting));
-        paint=mix(paint,base,smoothstep(.22,.29,lighting));
-        paint=mix(paint,light,smoothstep(.83,.9,lighting)*.48);
+        paint=mix(paint,base,smoothstep(.13,.39,lighting));
+        paint=mix(paint,light,smoothstep(.72,.98,lighting)*.48);
         float rim=pow(1.-abs(dot(n,normalize(eyeDir))),4.);
         paint=mix(paint,light,rim*.20*smoothstep(-.1,.8,n.y));
         if(!gl_FrontFacing)paint*=.65;
         paint*=pigment;
         // Preserve a gentle form gradient inside the larger painted light bands.
-        paint*=.88+.12*clamp(lighting*.5+.5,0.,1.);
+        paint*=.72+.28*clamp(lighting*.5+.5,0.,1.);
         gl_FragColor=vec4(paint,1.);
         #include <colorspace_fragment>
       }`,

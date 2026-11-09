@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createIrisMaterial } from './iris.js';
 import { animeMaterial, inkOutline } from './anime-material.js';
-import { brimPoint, brimOnSurface, createBrimGeometry } from './brim.js';
+import { brimNormal, brimOnSurface, createBrimGeometry } from './brim.js';
 
 const TAU = Math.PI * 2;
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -73,114 +73,59 @@ function createEye(gold, cloth, surfaceZ) {
   const root = new THREE.Group();
   root.position.set(-0.12, 1.68, 0.9);
   const iris = createIrisMaterial();
-  const eyeMaterial = iris.material;
-  const width = 0.75,
-    halfHeight = 0.235;
-  function onCloth(x, y, lift = 0.04) {
+  const width = 0.82;
+  const arch = (u) => Math.pow(Math.max(0, Math.sin(Math.PI * u)), 1.25);
+  function onCloth(x, y, lift = 0.018) {
     return v(x, y, surfaceZ(x - 0.12, y + 1.68) - 0.9 + lift);
   }
-  const almond = (u, upper, open) => {
-    const x = (u * 2 - 1) * width;
-    const arch = Math.pow(Math.max(0, 1 - (x / width) ** 2), 0.9);
-    return onCloth(x, 0.035 * x + (upper ? 1 : -1) * halfHeight * arch * open);
-  };
-  const lensGeo = surfaceGeometry(14, 64, (a, u) => {
-    const lo = almond(u, false, 1),
-      hi = almond(u, true, 1);
-    return lo.lerp(hi, a).add(v(0, 0, 0.035 * Math.sin(a * Math.PI)));
-  });
-  const lens = new THREE.Mesh(lensGeo, eyeMaterial);
-  root.add(lens);
-  const upperGold = tube(
-    Array.from({ length: 45 }, (_, i) => almond(i / 44, true, 1)),
-    0.027,
-    gold,
-  );
-  const lowerGold = tube(
-    Array.from({ length: 45 }, (_, i) => almond(i / 44, false, 1)),
-    0.023,
-    gold,
-  );
-  root.add(upperGold, lowerGold);
-  // Cloth extends out from the socket, so this reads as an eye in the hat itself.
-  const lids = [true, false].map((upper) => {
-    const geometry = surfaceGeometry(8, 64, (a, u) => {
-      const inside = almond(u, upper, 1);
-      const outside = almond(u, upper, 1);
-      outside.y += (upper ? 1 : -1) * 0.13 * Math.sin(Math.PI * u);
-      outside.z -= 0.045;
-      return inside.lerp(outside, a);
-    });
-    const mesh = new THREE.Mesh(geometry, cloth);
+  function almond(u, upper, open) {
+    const x = (2 * u - 1) * width;
+    return onCloth(x, -0.1 * x + (upper ? 0.25 : -0.2) * arch(u) * open);
+  }
+  const parts = [];
+  function addPart(rows, columns, material, sample) {
+    const geo = surfaceGeometry(rows, columns, (a, u) => sample(a, u, 1));
+    const closed = surfaceGeometry(rows, columns, (a, u) => sample(a, u, 0.015));
+    geo.morphAttributes.position = [closed.attributes.position.clone()];
+    geo.morphAttributes.normal = [closed.attributes.normal.clone()];
+    closed.dispose();
+    const mesh = new THREE.Mesh(geo, material);
+    parts.push(mesh);
     root.add(mesh);
     return mesh;
-  });
-  // Deliberately tapered gold wings, rather than a circular badge around the eye.
-  for (const side of [-1, 1]) {
-    root.add(
-      tube([onCloth(side * 0.6, 0.12), onCloth(side * 0.76, 0.065), onCloth(side * 0.85, 0.03)], 0.014, gold),
-    );
   }
-  function setOpen(open) {
-    const pos = lensGeo.attributes.position;
-    let index = 0;
-    for (let i = 0; i <= 14; i++)
-      for (let j = 0; j <= 64; j++) {
-        const a = i / 14,
-          u = j / 64;
-        const p = almond(u, false, open).lerp(almond(u, true, open), a);
-        p.z += 0.035 * Math.sin(a * Math.PI) * open;
-        pos.setXYZ(index++, p.x, p.y, p.z);
-      }
-    pos.needsUpdate = true;
-    for (let k = 0; k < 2; k++) {
-      const upper = k === 0,
-        attr = lids[k].geometry.attributes.position;
-      index = 0;
-      for (let i = 0; i <= 8; i++)
-        for (let j = 0; j <= 64; j++) {
-          const a = i / 8,
-            u = j / 64;
-          const p = almond(u, upper, open);
-          const outer = almond(u, upper, 1);
-          outer.y += (upper ? 1 : -1) * 0.13 * Math.sin(Math.PI * u);
-          outer.z -= 0.045;
-          p.lerp(outer, a);
-          attr.setXYZ(index++, p.x, p.y, p.z);
-        }
-      attr.needsUpdate = true;
-      lids[k].geometry.computeVertexNormals();
-    }
-    for (const [mesh, upper, radius] of [
-      [upperGold, true, 0.027],
-      [lowerGold, false, 0.023],
-    ]) {
-      const curve = new THREE.CatmullRomCurve3(
-        Array.from({ length: 45 }, (_, i) => almond(i / 44, upper, open)),
-      );
-      const geometry = new THREE.TubeGeometry(curve, 180, radius, 6, false);
-      mesh.geometry.dispose();
-      mesh.geometry = geometry;
-    }
-  }
-  // Build the two aperture poses once. GPU morphing keeps the iris round while
-  // the cloth lids cover it, with no geometry allocations during a blink.
-  const meshes = [lens, ...lids, upperGold, lowerGold];
-  const opened = meshes.map((mesh) => mesh.geometry.attributes.position.array.slice());
-  setOpen(0.015);
-  const closed = meshes.map((mesh) => mesh.geometry.attributes.position.array.slice());
-  meshes.forEach((mesh, i) => {
-    mesh.geometry.attributes.position.array.set(opened[i]);
-    mesh.geometry.attributes.position.needsUpdate = true;
-    mesh.geometry.morphAttributes.position = [new THREE.Float32BufferAttribute(closed[i], 3)];
-    mesh.updateMorphTargets();
-    mesh.morphTargetInfluences[0] = 0;
-    mesh.geometry.computeVertexNormals();
+  const lens = addPart(16, 80, iris.material, (a, u, open) => {
+    const p = almond(u, false, open).lerp(almond(u, true, open), a);
+    p.z += 0.04 * Math.sin(a * Math.PI) * arch(u) * open - 0.013;
+    return p;
   });
+  for (const upper of [true, false]) {
+    const sign = upper ? 1 : -1;
+    // Broad cloth rolls merge back into the crown. Their outer edge stays fixed
+    // while the aperture closes, so blinking folds the lids over the iris.
+    addPart(12, 80, cloth, (a, u, open) => {
+      const inner = almond(u, upper, open);
+      const outer = almond(u, upper, 1);
+      outer.y += sign * (upper ? 0.23 : 0.15) * arch(u);
+      outer.z = surfaceZ(outer.x - 0.12, outer.y + 1.68) - 0.9 + 0.002;
+      const p = inner.lerp(outer, a);
+      p.z += 0.035 * Math.sin(Math.PI * a) * arch(u);
+      return p;
+    });
+    // Gold is a tapered embroidered ribbon, not a constant-radius pipe.
+    addPart(4, 80, gold, (a, u, open) => {
+      const p = almond(u, upper, open);
+      const taper = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.7);
+      const ribbon = (upper ? 0.044 : 0.058) * taper;
+      p.y += sign * ribbon * a;
+      p.z += 0.008 + 0.009 * Math.sin(Math.PI * a) * taper;
+      return p;
+    });
+  }
   return {
     root,
     setOpen(open) {
-      for (const mesh of meshes) mesh.morphTargetInfluences[0] = 1 - THREE.MathUtils.clamp(open, 0, 1);
+      for (const mesh of parts) mesh.morphTargetInfluences[0] = 1 - THREE.MathUtils.clamp(open, 0, 1);
     },
     look: iris.look,
     get openness() {
@@ -223,7 +168,7 @@ export function createWitchHat() {
     root.add(tube(points, 0.016, gold));
     const motif = star(0.075, brightGold);
     motif.position.copy(brimOnSurface(0.95, a));
-    motif.rotation.x = -Math.PI / 2;
+    motif.quaternion.setFromUnitVectors(v(0, 0, 1), brimNormal(0.95, a));
     root.add(motif);
   }
 
@@ -238,9 +183,9 @@ export function createWitchHat() {
       v(0.5, 3.95, 0),
       v(0.74, 3.49, 0),
       v(1.06, 3.13, 0),
-      v(1.64, 2.85, 0),
-      v(2.03, 2.44, 0),
-      v(2.02, 2.1, 0),
+      v(1.67, 2.75, 0),
+      v(2.27, 2.36, 0),
+      v(2.18, 1.91, 0),
     ],
     false,
     'catmullrom',
@@ -253,24 +198,25 @@ export function createWitchHat() {
       v(0.94, 2.2, 0),
       v(1.06, 2.9, 0),
       v(1.48, 3.58, 0),
-      v(1.68, 3.15, 0),
-      v(2.2, 2.92, 0),
-      v(2.37, 2.6, 0),
-      v(2.27, 2.29, 0),
-      v(2.02, 2.1, 0),
+      v(1.90, 3.15, 0),
+      v(2.49, 2.91, 0),
+      v(2.63, 2.56, 0),
+      v(2.48, 2.19, 0),
+      v(2.18, 1.91, 0),
     ],
     false,
     'catmullrom',
     0.5,
   );
   const depths = new THREE.SplineCurve(
-    [1.08, 0.92, 0.7, 0.52, 0.22, 0.27, 0.22, 0.13, 0.065, 0.002].map((r, i) => new THREE.Vector2(i / 9, r)),
+    [1.08, 0.92, 0.83, 0.67, 0.36, 0.32, 0.25, 0.17, 0.09, 0.002].map((r, i) => new THREE.Vector2(i / 9, r)),
   );
   const creases = [
-    [0.16, 0.39, 1.1, 1.7, 0.19, 0.075],
-    [0.3, 0.49, 2.25, 1.8, 0.2, 0.085],
-    [0.43, 0.67, 1.0, 1.65, 0.2, 0.07],
-    [0.62, 0.88, 1.4, 2.2, 0.18, 0.06],
+    [0.08, 0.27, 2.65, 1.55, 0.27, 0.13],
+    [0.14, 0.38, 0.75, 1.45, 0.24, 0.18],
+    [0.26, 0.49, 2.30, 1.90, 0.28, 0.20],
+    [0.42, 0.67, 0.95, 1.60, 0.25, 0.14],
+    [0.60, 0.88, 1.20, 2.20, 0.26, 0.09],
   ];
   function crownPoint(u, a) {
     const p = left.getPoint(u).lerp(right.getPoint(u), (Math.cos(a) + 1) * 0.5);
@@ -280,7 +226,9 @@ export function createWitchHat() {
       if (t > 0 && t < 1) {
         const axis = THREE.MathUtils.lerp(a0, a1, t);
         const d = Math.atan2(Math.sin(a - axis), Math.cos(a - axis));
-        z -= depth * Math.exp(-((d / width) ** 2)) * Math.sin(Math.PI * t);
+        const envelope = Math.sin(Math.PI * t) ** 2;
+        z -= depth * Math.exp(-((d / width) ** 2)) * envelope;
+        z += depth * 0.38 * Math.exp(-(((d + width * 1.5) / (width * 1.8)) ** 2)) * envelope;
       }
     }
     p.z = z;
@@ -296,7 +244,7 @@ export function createWitchHat() {
           Math.sin(a - THREE.MathUtils.lerp(a0, a1, t)),
           Math.cos(a - THREE.MathUtils.lerp(a0, a1, t)),
         );
-        pigment -= 0.23 * Math.exp(-((delta / (width * 2.2)) ** 2)) * Math.sin(Math.PI * t);
+        pigment -= 0.35 * Math.exp(-((delta / (width * 1.4)) ** 2)) * Math.sin(Math.PI * t) ** 2;
       }
     }
     return new THREE.Color().setScalar(pigment);
@@ -362,6 +310,24 @@ export function createWitchHat() {
       b,
     );
   }
+  // Open a real socket in the crown. The overlapping cloth lips conceal its
+  // triangulated boundary; the reverse side of the crown stays intact.
+  const socketIndices = [];
+  const position = crown.geometry.attributes.position;
+  const sourceIndices = crown.geometry.index.array;
+  for (let i = 0; i < sourceIndices.length; i += 3) {
+    const ids = [sourceIndices[i], sourceIndices[i + 1], sourceIndices[i + 2]];
+    const center = ids
+      .reduce((p, id) => p.add(v(position.getX(id), position.getY(id), position.getZ(id))), v(0, 0, 0))
+      .multiplyScalar(1 / 3);
+    const x = center.x + 0.12;
+    const u = (x / 0.82 + 1) / 2;
+    const arch = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 1.25);
+    const y = center.y - 1.68 + 0.1 * x;
+    const inSocket = u > 0 && u < 1 && center.z > 0 && y < 0.25 * arch - 0.025 && y > -0.2 * arch + 0.025;
+    if (!inSocket) socketIndices.push(...ids);
+  }
+  crown.geometry.setIndex(socketIndices);
   const eye = createEye(gold, cloth, surfaceZ);
   root.add(eye.root);
   const largeStar = star(0.24, gold);

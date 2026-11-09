@@ -15,7 +15,7 @@ export function createIrisMaterial() {
   ctx.fillRect(0, 0, 1024, 512);
   ctx.save();
   ctx.translate(512, 256);
-  ctx.scale(166, 208);
+  ctx.scale(190, 208);
   const iris = ctx.createRadialGradient(0, 0, 0.04, 0, 0, 1);
   iris.addColorStop(0, '#4a1f6a');
   iris.addColorStop(0.33, '#6f2d9a');
@@ -27,11 +27,11 @@ export function createIrisMaterial() {
   ctx.beginPath();
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.fill();
-  for (let i = 0; i < 180; i++) {
-    const angle = (i * Math.PI * 2) / 180;
+  for (let i = 0; i < 44; i++) {
+    const angle = (i * Math.PI * 2) / 44;
     const inner = 0.28 + 0.1 * Math.sin(i * 5.3);
     const outer = 0.87 + 0.06 * Math.sin(i * 2.7);
-    ctx.strokeStyle = i % 3 ? '#efb4ff30' : '#35114a30';
+    ctx.strokeStyle = i % 3 ? '#efb4ff16' : '#35114a16';
     ctx.lineWidth = 0.006;
     ctx.beginPath();
     ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
@@ -43,6 +43,28 @@ export function createIrisMaterial() {
     );
     ctx.stroke();
   }
+  // Large translucent pigment shapes give the lower iris an illustrated glow.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.94, 0, Math.PI * 2);
+  ctx.clip();
+  for (let i = 0; i < 9; i++) {
+    const a = 0.12 + i * Math.PI / 9;
+    ctx.fillStyle = i % 2 ? '#e89cff30' : '#ad4eda24';
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 0.35, Math.sin(a) * 0.35);
+    ctx.lineTo(Math.cos(a - 0.18), Math.sin(a - 0.18));
+    ctx.lineTo(Math.cos(a + 0.19), Math.sin(a + 0.19));
+    ctx.closePath();
+    ctx.fill();
+  }
+  const lidShadow = ctx.createLinearGradient(0, -1, 0, 0.7);
+  lidShadow.addColorStop(0, '#210e36d9');
+  lidShadow.addColorStop(0.53, '#2d104524');
+  lidShadow.addColorStop(1, '#d47ae900');
+  ctx.fillStyle = lidShadow;
+  ctx.fillRect(-1, -1, 2, 2);
+  ctx.restore();
   ctx.fillStyle = '#140c22';
   ctx.beginPath();
   ctx.moveTo(0, -0.99);

@@ -11,8 +11,10 @@ export function brimPoint(t, angle) {
   const left = Math.atan2(Math.sin(angle - 2.25), Math.cos(angle - 2.25));
   const roll = 1.15 * Math.exp(-((left / 0.92) ** 2)) * Math.pow(Math.max(0, t), 2.2);
   const wave = (0.43 * Math.cos(2 * angle + 1.25) + 0.12 * Math.sin(3 * angle - 0.6)) * t * t;
-  const folds = 0.115 * Math.sin(3 * angle + t * 3.2) * Math.sin(Math.PI * t);
-  const y = 0.88 - 0.39 * t + wave + roll + folds;
+  const folds = 0.24 * Math.sin(3 * angle + t * 4.2) * Math.sin(Math.PI * t);
+  const back = Math.atan2(Math.sin(angle - 4.0), Math.cos(angle - 4.0));
+  const hanging = -0.70 * Math.exp(-((back / 1.1) ** 2)) * t * t;
+  const y = 0.88 - 0.39 * t + wave + roll + folds + hanging;
   return V(r * Math.cos(angle) * ellipse, y, r * Math.sin(angle) * 0.81 * ellipse);
 }
 
@@ -32,6 +34,7 @@ export function createBrimGeometry() {
     stride = cols + 1,
     count = (rows + 1) * stride;
   const positions = [],
+    colors = [],
     uvs = [],
     indices = [];
   for (const side of [1, -1]) {
@@ -44,6 +47,9 @@ export function createBrimGeometry() {
         const p = brimPoint(t, a).addScaledVector(normal, side * thickness);
         positions.push(p.x, p.y, p.z);
         uvs.push(j / cols, t);
+        const shade = (side > 0 ? 0.76 + 0.24 * t : 0.64 + 0.14 * t)
+          * (0.92 + 0.08 * Math.cos(a * 3 + t * 3));
+        colors.push(shade, shade, shade);
       }
   }
   for (let i = 0; i < rows; i++)
@@ -61,6 +67,7 @@ export function createBrimGeometry() {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
