@@ -10,6 +10,7 @@ export function animeMaterial(kind = 'cloth') {
   const palette = palettes[kind];
   return new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
+    vertexColors: true,
     uniforms: {
       ink: { value: new THREE.Color(palette[0]) },
       shade: { value: new THREE.Color(palette[1]) },
@@ -17,19 +18,26 @@ export function animeMaterial(kind = 'cloth') {
       light: { value: new THREE.Color(palette[3]) },
     },
     vertexShader: `
-      varying vec3 nWorld; varying vec3 eyeDir;
+      varying vec3 nWorld; varying vec3 eyeDir; varying vec3 pigment;
       #include <morphtarget_pars_vertex>
       void main(){
         #include <morphinstance_vertex>
         #include <begin_vertex>
         #include <morphtarget_vertex>
-        nWorld=normalize(mat3(modelMatrix)*normal);
+        #include <beginnormal_vertex>
+        #include <morphnormal_vertex>
+        nWorld=normalize(mat3(modelMatrix)*objectNormal);
+        #ifdef USE_COLOR
+          pigment=color;
+        #else
+          pigment=vec3(1.);
+        #endif
         vec4 world=modelMatrix*vec4(transformed,1.);
         eyeDir=cameraPosition-world.xyz;
         gl_Position=projectionMatrix*viewMatrix*world;
       }`,
     fragmentShader: `
-      varying vec3 nWorld; varying vec3 eyeDir;
+      varying vec3 nWorld; varying vec3 eyeDir; varying vec3 pigment;
       uniform vec3 ink; uniform vec3 shade; uniform vec3 base; uniform vec3 light;
       void main(){
         vec3 n=normalize(nWorld)*(gl_FrontFacing?1.:-1.);
@@ -40,6 +48,9 @@ export function animeMaterial(kind = 'cloth') {
         float rim=pow(1.-abs(dot(n,normalize(eyeDir))),4.);
         paint=mix(paint,light,rim*.20*smoothstep(-.1,.8,n.y));
         if(!gl_FrontFacing)paint*=.65;
+        paint*=pigment;
+        // Preserve a gentle form gradient inside the larger painted light bands.
+        paint*=.88+.12*clamp(lighting*.5+.5,0.,1.);
         gl_FragColor=vec4(paint,1.);
         #include <colorspace_fragment>
       }`,

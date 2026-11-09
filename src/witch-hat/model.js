@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createIrisMaterial } from './iris.js';
 import { animeMaterial, inkOutline } from './anime-material.js';
+import { brimPoint, brimOnSurface, createBrimGeometry } from './brim.js';
 
 const TAU = Math.PI * 2;
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -194,38 +195,20 @@ export function createWitchHat() {
   const coloredCloth = cloth;
   const gold = animeMaterial('gold');
   const brightGold = gold;
-  const base = new THREE.Color('#5c3476');
+  const base = new THREE.Color('#ffffff');
   const clothColor = (u, a) => {
     const theta = a * TAU;
     const fold = Math.sin(theta * 5 + u * 7) * 0.5 + Math.sin(theta * 8 - u * 8) * 0.15;
     const shade = 0.96 + fold * 0.035;
     return base.clone().multiplyScalar(shade);
   };
-  function brimPoint(t, a) {
-    const r = 1.1 + t * 1.96;
-    const ellipse = 1 + 0.045 * Math.sin(3 * a + 0.4);
-    const wave =
-      (0.43 * Math.cos(2 * a + 1.3) + 0.22 * Math.sin(3 * a - 1.2) + 0.1 * Math.cos(a + 0.5)) *
-      Math.pow(t, 1.6);
-    const angle = Math.atan2(Math.sin(a - 2.3), Math.cos(a - 2.3));
-    const curl = 0.68 * Math.exp(-((angle / 0.58) ** 2)) * t ** 7;
-    const drape = 0.16 * Math.sin(t * 4 + a * 3) * Math.sin(t * Math.PI) * t;
-    const y = 0.92 - 0.36 * t + wave + drape + curl;
-    return v(r * Math.cos(a) * ellipse, y, r * Math.sin(a) * 0.78 * ellipse);
-  }
-  const brim = new THREE.Mesh(
-    surfaceGeometry(44, 192, (t, a) => brimPoint(t, a * TAU), clothColor),
-    coloredCloth,
-  );
+  const brim = new THREE.Mesh(createBrimGeometry(), coloredCloth);
   brim.receiveShadow = true;
   root.add(brim);
-  inkOutline(brim, 0.009);
 
-  const edgePoints = Array.from({ length: 145 }, (_, i) => brimPoint(1, (i / 144) * TAU).add(v(0, 0.008, 0)));
+  const edgePoints = Array.from({ length: 145 }, (_, i) => brimOnSurface(1, (i / 144) * TAU, 0));
   root.add(tube(edgePoints, 0.025, gold, true));
-  const innerStitch = Array.from({ length: 145 }, (_, i) =>
-    brimPoint(0.977, (i / 144) * TAU).add(v(0, 0.012, 0)),
-  );
+  const innerStitch = Array.from({ length: 145 }, (_, i) => brimOnSurface(0.977, (i / 144) * TAU));
   root.add(tube(innerStitch, 0.008, brightGold, true));
   // Small scalloped embroidery follows the actual waving brim surface.
   for (let k = 0; k < 8; k++) {
@@ -236,10 +219,10 @@ export function createWitchHat() {
       [0, 0.925],
       [0.08, 0.91],
       [0.18, 0.985],
-    ].map(([offset, t]) => brimPoint(t, a + offset).add(v(0, 0.025, 0)));
+    ].map(([offset, t]) => brimOnSurface(t, a + offset));
     root.add(tube(points, 0.016, gold));
     const motif = star(0.075, brightGold);
-    motif.position.copy(brimPoint(0.95, a).add(v(0, 0.028, 0)));
+    motif.position.copy(brimOnSurface(0.95, a));
     motif.rotation.x = -Math.PI / 2;
     root.add(motif);
   }
@@ -252,8 +235,8 @@ export function createWitchHat() {
       v(-1.1, 1.45, 0),
       v(-0.84, 2.2, 0),
       v(-0.35, 3.05, 0),
-      v(0.5, 4.05, 0),
-      v(0.86, 3.45, 0),
+      v(0.5, 3.95, 0),
+      v(0.74, 3.49, 0),
       v(1.06, 3.13, 0),
       v(1.64, 2.85, 0),
       v(2.03, 2.44, 0),
@@ -261,7 +244,7 @@ export function createWitchHat() {
     ],
     false,
     'catmullrom',
-    0.2,
+    0.5,
   );
   const right = new THREE.CatmullRomCurve3(
     [
@@ -269,7 +252,7 @@ export function createWitchHat() {
       v(1.03, 1.45, 0),
       v(0.94, 2.2, 0),
       v(1.06, 2.9, 0),
-      v(1.48, 3.66, 0),
+      v(1.48, 3.58, 0),
       v(1.68, 3.15, 0),
       v(2.2, 2.92, 0),
       v(2.37, 2.6, 0),
@@ -278,7 +261,7 @@ export function createWitchHat() {
     ],
     false,
     'catmullrom',
-    0.2,
+    0.5,
   );
   const depths = new THREE.SplineCurve(
     [1.08, 0.92, 0.7, 0.52, 0.22, 0.27, 0.22, 0.13, 0.065, 0.002].map((r, i) => new THREE.Vector2(i / 9, r)),
@@ -303,8 +286,23 @@ export function createWitchHat() {
     p.z = z;
     return p;
   }
+  const crownColor = (u, angle) => {
+    const a = angle * TAU;
+    let pigment = 0.98;
+    for (const [start, end, a0, a1, width] of creases) {
+      const t = (u - start) / (end - start);
+      if (t > 0 && t < 1) {
+        const delta = Math.atan2(
+          Math.sin(a - THREE.MathUtils.lerp(a0, a1, t)),
+          Math.cos(a - THREE.MathUtils.lerp(a0, a1, t)),
+        );
+        pigment -= 0.23 * Math.exp(-((delta / (width * 2.2)) ** 2)) * Math.sin(Math.PI * t);
+      }
+    }
+    return new THREE.Color().setScalar(pigment);
+  };
   const crown = new THREE.Mesh(
-    outward(surfaceGeometry(160, 128, (u, a) => crownPoint(u, a * TAU), clothColor)),
+    outward(surfaceGeometry(160, 128, (u, a) => crownPoint(u, a * TAU), crownColor)),
     coloredCloth,
   );
   crown.receiveShadow = true;
