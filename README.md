@@ -21,3 +21,26 @@ Earlier robots are kept as self-contained copies: the pastel robot in `backup/pa
 - `src/animation.js` – stand-up routine, waving, blinking and other idle motion
 - `src/toys.js` – the toys, their little physics and pointer interaction
 - `src/main.js` – renderer, camera and lights
+
+## Witch Hat
+
+The **Witch Hat** project menu opens a separate page at `/witch-hat/`. The robot
+scene and both robot backups keep their own entry points.
+
+The hat is modeled in Three.js, with a waving brim, a bent crown, an integrated
+purple eye, gold embroidery, a crescent and a swinging crystal. Its cloth and
+eye use physical materials and the robot's shared studio environment. No model
+downloads or external image assets are needed.
+
+- Drag to orbit; scroll or pinch to zoom. **Reset** restores the initial camera.
+- The eye blinks automatically and follows the pointer. **Berkedip** triggers a
+  blink; tapping the hat also gives it a little magical sway.
+- **Jeda animasi** pauses motion. Reduced-motion preferences start it paused.
+  `/witch-hat/?still` opens a static pose for inspection.
+- `src/witch-hat/model.js` builds geometry, ornaments and morphing cloth lids.
+- `iris.js` paints the eye and attaches it to a reflective physical material.
+- `animation.js` drives blinking, gaze, floating, crown motion and the pendant.
+- `effects.js` supplies a soft contact shadow and sparse drifting particles.
+- `main.js` manages the renderer, studio lights, camera and input.
+
+`npm run build` includes all four pages through the Vite multi-page configuration.

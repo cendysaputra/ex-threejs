@@ -4,26 +4,44 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f7f3fa" />
-    <meta name="description" content="Topi penyihir bermata ungu. Sebuah studi karakter anime interaktif dalam Three.js." />
+    <meta
+      name="description"
+      content="Topi penyihir bermata ungu. Sebuah studi karakter anime interaktif dalam Three.js."
+    />
     <title>Witch Hat — Three.js studies</title>
     <link rel="stylesheet" href="/src/project-nav.css" />
     <link rel="stylesheet" href="/src/witch-hat/style.css" />
   </head>
   <body>
-    <header class="identity"><a href="/" aria-label="Kembali ke Robot">THREE.JS <span>STUDIES</span></a></header>
+    <header class="identity">
+      <a href="/" aria-label="Kembali ke Robot">THREE.JS <span>STUDIES</span></a>
+    </header>
     <nav class="project-nav" aria-label="Projects">
       <a href="/">Robot</a>
       <a href="/witch-hat/" aria-current="page">Witch Hat</a>
     </nav>
     <main>
-      <div id="scene" aria-label="Model 3D topi penyihir. Geser untuk memutar, cubit untuk memperbesar."></div>
+      <div
+        id="scene"
+        aria-label="Model 3D topi penyihir. Geser untuk memutar, cubit untuk memperbesar."
+      ></div>
       <div id="scene-status" role="status">Membangunkan si penyihir…</div>
       <section class="caption" aria-label="Tentang karakter">
         <p class="eyebrow">02 / AN ENCHANTED OBJECT</p>
         <h1>A little<br /><em>spellbound.</em></h1>
-        <p class="description">Sepasang rahasia. Satu mata yang terjaga.</p>
+        <p class="description">Menyimpan rahasia. Mengamati dunia.</p>
       </section>
-      <footer class="scene-footer"><span>WITCH HAT <span class="divider">/</span> PURPLE EDITION</span><span>Geser untuk melihat sekeliling</span></footer>
+      <div class="viewer-controls" aria-label="Kontrol animasi">
+        <button id="blink" type="button">Berkedip <span aria-hidden="true">✧</span></button>
+        <button id="pause" type="button" aria-pressed="false">Jeda animasi</button>
+        <button id="reset" type="button" aria-label="Reset sudut kamera">
+          Reset <span aria-hidden="true">↺</span>
+        </button>
+      </div>
+      <footer class="scene-footer">
+        <span>WITCH HAT <span class="divider">/</span> PURPLE EDITION</span
+        ><span>Geser untuk melihat sekeliling</span>
+      </footer>
     </main>
     <script type="module" src="/src/witch-hat/main.js"></script>
   </body>
