@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createIrisMaterial } from './iris.js';
+import { animeMaterial, inkOutline } from './anime-material.js';
 
 const TAU = Math.PI * 2;
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -189,31 +190,10 @@ function createEye(gold, cloth, surfaceZ) {
 
 export function createWitchHat() {
   const root = new THREE.Group();
-  const cloth = new THREE.MeshPhysicalMaterial({
-    color: '#583070',
-    roughness: 0.74,
-    sheen: 0.8,
-    sheenColor: '#c39adf',
-    sheenRoughness: 0.55,
-    side: THREE.DoubleSide,
-  });
-  const coloredCloth = new THREE.MeshPhysicalMaterial({
-    color: '#ffffff',
-    roughness: 0.72,
-    sheen: 0.75,
-    sheenColor: '#ba8dd8',
-    sheenRoughness: 0.65,
-    vertexColors: true,
-    side: THREE.DoubleSide,
-  });
-  coloredCloth.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <color_fragment>',
-      '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb *= 0.74;',
-    );
-  };
-  const gold = new THREE.MeshStandardMaterial({ color: '#f3c596', roughness: 0.27, metalness: 0.76 });
-  const brightGold = new THREE.MeshStandardMaterial({ color: '#ffe0af', roughness: 0.24, metalness: 0.65 });
+  const cloth = animeMaterial();
+  const coloredCloth = cloth;
+  const gold = animeMaterial('gold');
+  const brightGold = gold;
   const base = new THREE.Color('#5c3476');
   const clothColor = (u, a) => {
     const theta = a * TAU;
@@ -239,6 +219,7 @@ export function createWitchHat() {
   );
   brim.receiveShadow = true;
   root.add(brim);
+  inkOutline(brim, 0.009);
 
   const edgePoints = Array.from({ length: 145 }, (_, i) => brimPoint(1, (i / 144) * TAU).add(v(0, 0.008, 0)));
   root.add(tube(edgePoints, 0.025, gold, true));
@@ -263,34 +244,64 @@ export function createWitchHat() {
     root.add(motif);
   }
 
-  const center = new THREE.CatmullRomCurve3(
+  // Loft between designed silhouette boundaries. A circular swept tube made
+  // the hanging tip look like a hose; the asymmetric sections form folded cloth.
+  const left = new THREE.CatmullRomCurve3(
     [
-      v(0, 0.82, 0),
-      v(-0.06, 1.45, 0),
-      v(-0.14, 2.2, 0),
-      v(0.03, 2.94, 0),
-      v(0.47, 3.75, -0.02),
-      v(0.92, 3.6, -0.01),
-      v(1.31, 3.1, 0),
-      v(1.85, 2.85, 0.02),
-      v(2.06, 2.38, 0.06),
-      v(1.93, 2.03, 0.1),
+      v(-1.23, 0.82, 0),
+      v(-1.1, 1.45, 0),
+      v(-0.84, 2.2, 0),
+      v(-0.35, 3.05, 0),
+      v(0.5, 4.05, 0),
+      v(0.86, 3.45, 0),
+      v(1.06, 3.13, 0),
+      v(1.64, 2.85, 0),
+      v(2.03, 2.44, 0),
+      v(2.02, 2.1, 0),
     ],
     false,
     'catmullrom',
-    0.35,
+    0.2,
   );
-  const radii = [1.23, 1.05, 0.82, 0.61, 0.25, 0.25, 0.23, 0.16, 0.085, 0.002];
-  const radiusCurve = new THREE.SplineCurve(radii.map((r, i) => new THREE.Vector2(i / 9, r)));
+  const right = new THREE.CatmullRomCurve3(
+    [
+      v(1.23, 0.82, 0),
+      v(1.03, 1.45, 0),
+      v(0.94, 2.2, 0),
+      v(1.06, 2.9, 0),
+      v(1.48, 3.66, 0),
+      v(1.68, 3.15, 0),
+      v(2.2, 2.92, 0),
+      v(2.37, 2.6, 0),
+      v(2.27, 2.29, 0),
+      v(2.02, 2.1, 0),
+    ],
+    false,
+    'catmullrom',
+    0.2,
+  );
+  const depths = new THREE.SplineCurve(
+    [1.08, 0.92, 0.7, 0.52, 0.22, 0.27, 0.22, 0.13, 0.065, 0.002].map((r, i) => new THREE.Vector2(i / 9, r)),
+  );
+  const creases = [
+    [0.16, 0.39, 1.1, 1.7, 0.19, 0.075],
+    [0.3, 0.49, 2.25, 1.8, 0.20, 0.085],
+    [0.43, 0.67, 1.0, 1.65, 0.20, 0.07],
+    [0.62, 0.88, 1.4, 2.2, 0.18, 0.06],
+  ];
   function crownPoint(u, a) {
-    const p = center.getPoint(u),
-      tangent = center.getTangent(u);
-    const xAxis = v(tangent.y, -tangent.x, 0).normalize();
-    const zAxis = new THREE.Vector3().crossVectors(xAxis, tangent).normalize();
-    let r = Math.max(0.002, radiusCurve.getPoint(u).y);
-    const fold = 0.026 * Math.sin(a * 5 + u * 7) + 0.009 * Math.sin(a * 8 - u * 8);
-    r *= 1 + fold;
-    return p.addScaledVector(xAxis, Math.cos(a) * r).addScaledVector(zAxis, Math.sin(a) * r * 0.88);
+    const p = left.getPoint(u).lerp(right.getPoint(u), (Math.cos(a) + 1) * 0.5);
+    let z = Math.max(0.002, depths.getPoint(u).y) * Math.sin(a);
+    for (const [start, end, a0, a1, width, depth] of creases) {
+      const t = (u - start) / (end - start);
+      if (t > 0 && t < 1) {
+        const axis = THREE.MathUtils.lerp(a0, a1, t);
+        const d = Math.atan2(Math.sin(a - axis), Math.cos(a - axis));
+        z -= depth * Math.exp(-((d / width) ** 2)) * Math.sin(Math.PI * t);
+      }
+    }
+    p.z = z;
+    return p;
   }
   const crown = new THREE.Mesh(
     outward(surfaceGeometry(160, 128, (u, a) => crownPoint(u, a * TAU), clothColor)),
@@ -298,6 +309,7 @@ export function createWitchHat() {
   );
   crown.receiveShadow = true;
   root.add(crown);
+  inkOutline(crown);
 
   // A separate draped band adds overlapping folds at the base of the crown.
   const band = new THREE.Mesh(
@@ -355,7 +367,7 @@ export function createWitchHat() {
   const eye = createEye(gold, cloth, surfaceZ);
   root.add(eye.root);
   const largeStar = star(0.24, gold);
-  largeStar.position.set(-0.62, 2.34, 0.72);
+  largeStar.position.set(-0.40, 2.42, 0.72);
   largeStar.rotation.x = -0.35;
   largeStar.rotation.z = -0.15;
   root.add(largeStar);
@@ -363,6 +375,14 @@ export function createWitchHat() {
   smallStar.position.set(0.5, 2.1, 0.8);
   smallStar.rotation.x = -0.35;
   root.add(smallStar);
+  for (const ornament of [largeStar, smallStar]) {
+    ray.set(v(ornament.position.x, ornament.position.y, 4), v(0, 0, -1));
+    const hit = ray.intersectObject(crown, false)[0];
+    if (hit) {
+      ornament.position.z = hit.point.z + 0.018;
+      if (hit.normal) ornament.quaternion.setFromUnitVectors(v(0, 0, 1), hit.normal.normalize());
+    }
+  }
 
   const charm = new THREE.Group();
   charm.position.set(1.02, 1.39, 1.01);

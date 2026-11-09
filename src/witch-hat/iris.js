@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Painted in object coordinates, so blinking covers the iris instead of
-// squashing the drawing. All reflections come from the studio lights.
+// squashing the drawing. Highlights are painted like an anime close-up.
 export function createIrisMaterial() {
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
@@ -55,21 +55,20 @@ export function createIrisMaterial() {
   light.addColorStop(1, '#fff3ff00');
   ctx.fillStyle = light;
   ctx.fillRect(-0.6, -0.7, 0.6, 0.6);
+  ctx.fillStyle = '#fff0ff';
+  ctx.beginPath();
+  ctx.ellipse(-0.34, -0.48, 0.085, 0.13, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#edbaff';
+  ctx.beginPath();
+  ctx.ellipse(0.32, 0.46, 0.035, 0.065, 0.5, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 4;
   const look = new THREE.Vector2();
-  const material = new THREE.MeshPhysicalMaterial({
-    map,
-    color: '#ffffff',
-    roughness: 0.21,
-    metalness: 0,
-    clearcoat: 1,
-    clearcoatRoughness: 0.09,
-    envMapIntensity: 0.8,
-    side: THREE.DoubleSide,
-  });
+  const material = new THREE.MeshBasicMaterial({ map, color: '#ffffff', side: THREE.DoubleSide });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.eyeLook = { value: look };
     shader.vertexShader = 'varying vec2 eyePosition;\n' + shader.vertexShader;
