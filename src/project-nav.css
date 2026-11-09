@@ -1,0 +1,28 @@
+.project-nav {
+  position: fixed;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(24px, env(safe-area-inset-right));
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid #b9a6cf55;
+  border-radius: 99px;
+  background: #ffffffdb;
+  backdrop-filter: blur(16px);
+  font: 500 12px/1.2 system-ui, sans-serif;
+}
+.project-nav a {
+  padding: 10px 15px;
+  border-radius: 99px;
+  color: #63536c;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.project-nav a[aria-current='page'] { color: #fff; background: #382547; }
+.project-nav a:hover { background: #e9dff1; color: #382547; }
+.project-nav a:focus-visible { outline: 2px solid #8e56c6; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .project-nav { top: max(16px, env(safe-area-inset-top)); right: 16px; }
+  .project-nav a { padding: 9px 12px; }
+}
